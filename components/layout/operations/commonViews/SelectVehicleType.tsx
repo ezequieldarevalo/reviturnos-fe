@@ -4,7 +4,7 @@ import Message from "components/layout/Message";
 import I18n from "components/common/i18n";
 import styled from "styled-components";
 import StepTitle from "components/common/StepTitle";
-import { vehicleTypeList, vehicleTypeListLasherasMaipu } from "lib/constants";
+import { vehicleTypeList, getVehicleTypeDisplay } from "lib/constants";
 import {Btn} from "components/common/styles/UtilsStyles"
 
 interface TitleProps {
@@ -112,8 +112,8 @@ function SelectVehicleType() {
     const [{plant, operation}, { onSelectVehicleType }] =
     useQuoteObtaining();
 
-    const currentVehicleTypeList = (plant === 'lasheras' || plant === 'maipu') ? vehicleTypeListLasherasMaipu : vehicleTypeList;
-    const [vehicleTypeSelected, setVehicleTypeSelected] = useState<string>(currentVehicleTypeList[0]);
+    // Siempre usar la lista estándar de tipos de vehículo
+    const [vehicleTypeSelected, setVehicleTypeSelected] = useState<string>(vehicleTypeList[0]);
 
   const getWarningLinesByOperation = (operation: string): IMessagesList[] => {
     if (operation === "chooseQuote") return getChooseQuoteMessages(plant);
@@ -142,12 +142,14 @@ function SelectVehicleType() {
         <I18n id="app.quoteObtaining.schedule.calendar.step1.title" />
       </StepTitle>
       <VehicleTypeSelectionPanel>
-        { currentVehicleTypeList.map((vehicleType)=>{
+        { vehicleTypeList.map((vehicleType)=>{
             let selected = false;
             if(vehicleTypeSelected===vehicleType) {
                 selected=true;
             }
-            return <VehicleTypeButton selected={selected} onClick={() => setVehicleTypeSelected(vehicleType)}>{vehicleType}</VehicleTypeButton>
+            // Mostrar el nombre traducido pero guardar el nombre real
+            const displayName = getVehicleTypeDisplay(vehicleType, plant);
+            return <VehicleTypeButton key={vehicleType} selected={selected} onClick={() => setVehicleTypeSelected(vehicleType)}>{displayName}</VehicleTypeButton>
         })}
       </VehicleTypeSelectionPanel>
       <BtnContainer>

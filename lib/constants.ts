@@ -5,9 +5,9 @@ export const MOTO_CHICA='MOTO HASTA 300 CC';
 export const MOTO_GRANDE='MOTO MAS DE 300 CC';
 export const CAMIONETA='CAMIONETA PARTICULAR';
 
-// Nombres específicos para plantas lasheras y maipu
-export const AUTO_LASHERAS_MAIPU='AUTOMOVIL';
-export const CAMIONETA_LASHERAS_MAIPU='CAMIONETA/SUV/UTILITARIO';
+// Nombres para visualización en plantas lasheras y maipu
+export const AUTO_LASHERAS_MAIPU_DISPLAY='AUTOMOVIL';
+export const CAMIONETA_LASHERAS_MAIPU_DISPLAY='CAMIONETA/SUV/UTILITARIO';
 
 export const vehicleTypeList = [
     AUTO,
@@ -16,12 +16,23 @@ export const vehicleTypeList = [
     CAMIONETA
 ];
 
-export const vehicleTypeListLasherasMaipu = [
-    AUTO_LASHERAS_MAIPU,
-    MOTO_CHICA,
-    MOTO_GRANDE,
-    CAMIONETA_LASHERAS_MAIPU
-];
+// Función para obtener el nombre visual según la planta
+export const getVehicleTypeDisplay = (vehicleType: string, plant: string): string => {
+    if (plant === 'lasheras' || plant === 'maipu') {
+        if (vehicleType === AUTO) return AUTO_LASHERAS_MAIPU_DISPLAY;
+        if (vehicleType === CAMIONETA) return CAMIONETA_LASHERAS_MAIPU_DISPLAY;
+    }
+    return vehicleType;
+};
+
+// Función para obtener el nombre real desde el nombre visual
+export const getVehicleTypeFromDisplay = (displayName: string, plant: string): string => {
+    if (plant === 'lasheras' || plant === 'maipu') {
+        if (displayName === AUTO_LASHERAS_MAIPU_DISPLAY) return AUTO;
+        if (displayName === CAMIONETA_LASHERAS_MAIPU_DISPLAY) return CAMIONETA;
+    }
+    return displayName;
+};
 
 
 

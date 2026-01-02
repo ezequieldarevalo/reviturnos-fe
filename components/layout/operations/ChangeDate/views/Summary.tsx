@@ -10,6 +10,7 @@ import Message from "components/layout/Message";
 import ErrorMessage from "components/common/error/ErrorMessage";
 import {Btn} from "components/common/styles/UtilsStyles"
 import useQuoteObtaining from "hooks/useQuoteObtaining";
+import { getVehicleTypeDisplay } from "lib/constants";
 
 const DateSelected = styled.div`
   position: relative;
@@ -91,7 +92,7 @@ function Summary(): JSX.Element {
       <GreyStepBox>
         <DateSelected>
           <b>Tipo de vehiculo:</b>{" "}
-          {vehicleType}
+          {getVehicleTypeDisplay(vehicleType, plant)}
         </DateSelected>
       </GreyStepBox>
 

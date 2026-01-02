@@ -7,6 +7,7 @@ import styled from "styled-components";
 import { capitalizeFirstChar, getStringDate } from "lib/commonFunctions";
 import Image from "next/image";
 import {Btn} from "components/common/styles/UtilsStyles"
+import { getVehicleTypeDisplay } from "lib/constants";
 
 const DateSelected = styled.div`
   position: relative;
@@ -55,7 +56,7 @@ function SelectPaymentMethod() {
       <GreyStepBox withModify={true} modifyFunction={onModifyVehicleType}>
         <DateSelected>
           <b>Tipo de vehiculo:</b>{" "}
-          {vehicleType}
+          {getVehicleTypeDisplay(vehicleType, quotes.plant)}
         </DateSelected>
       </GreyStepBox>
 

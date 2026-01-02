@@ -8,6 +8,7 @@ import Calendar from "components/common/Calendar";
 import { getStringDate, getStringTime } from "lib/commonFunctions";
 import GreyStepBox from "components/common/GreyStepBox";
 import LoaderG from "components/common/LoaderG";
+import { getVehicleTypeDisplay } from "lib/constants";
 
 const LoadingContainer = styled.div`
   min-height: 290px;
@@ -103,7 +104,7 @@ function SelectDate() {
       <GreyStepBox withModify={operation==='chooseQuote'} modifyFunction={onModifyVehicleType}>
         <DateSelected>
           <b>Tipo de vehiculo:</b>{" "}
-          {vehicleType}
+          {getVehicleTypeDisplay(vehicleType, plant)}
         </DateSelected>
       </GreyStepBox>
       <StepTitle plant={plant} stepNumber={2}>

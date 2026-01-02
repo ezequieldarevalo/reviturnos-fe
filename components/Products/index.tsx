@@ -2,6 +2,7 @@ import React from "react";
 import styled from "styled-components";
 import useQuoteObtaining from "hooks/useQuoteObtaining";
 import I18n from "components/common/i18n";
+import { getVehicleTypeDisplay } from "lib/constants";
 
 import {
   ProductsContainer,
@@ -38,7 +39,7 @@ function Products(): JSX.Element {
       <Info>
         <p>
           <b>Vehiculo:&nbsp;&nbsp;</b>
-          {quotes.tipo_vehiculo}
+          {getVehicleTypeDisplay(quotes.tipo_vehiculo, quotes.plant)}
         </p>
         {operation==='chooseQuote' && <p>
           <b>Precio:&nbsp;&nbsp;</b>${quotes.precio}.-

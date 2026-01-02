@@ -6,6 +6,7 @@ import { capitalizeFirstChar, getStringDate } from "lib/commonFunctions";
 import styled from "styled-components";
 import Image from "next/image";
 import useQuoteObtaining from "hooks/useQuoteObtaining";
+import { getVehicleTypeDisplay } from "lib/constants";
 
 const DateSelected = styled.div`
   position: relative;
@@ -125,7 +126,7 @@ function GiveEmail(): JSX.Element {
       <GreyStepBox>
         <DateSelected>
           <b>Tipo de vehiculo:</b>{" "}
-          {vehicleType}
+          {getVehicleTypeDisplay(vehicleType, plant)}
         </DateSelected>
       </GreyStepBox>
 

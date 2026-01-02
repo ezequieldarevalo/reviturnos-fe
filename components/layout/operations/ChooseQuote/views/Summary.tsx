@@ -10,6 +10,7 @@ import LoaderG from "components/common/LoaderG";
 import Message from "components/layout/Message";
 import ErrorMessage from "components/common/error/ErrorMessage";
 import { Btn } from "components/common/styles/UtilsStyles";
+import { getVehicleTypeDisplay } from "lib/constants";
 
 const DateSelected = styled.div`
   position: relative;
@@ -108,7 +109,7 @@ function Summary(): JSX.Element {
       <GreyStepBox withModify={true} modifyFunction={onModifyVehicleType}>
         <DateSelected>
           <b>Tipo de vehiculo:</b>{" "}
-          {vehicleType}
+          {getVehicleTypeDisplay(vehicleType, quotes.plant)}
         </DateSelected>
       </GreyStepBox>
       <StepTitle plant={quotes.plant} checked stepNumber={2}>
