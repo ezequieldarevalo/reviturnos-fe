@@ -7,15 +7,6 @@ import React, {
 } from "react";
 import type { ReactNode } from "react";
 import styled from "styled-components";
-import { ApolloError } from "@apollo/client";
-import { useLazyQuery, useMutation, FetchResult } from "@apollo/react-hooks";
-
-import getQuoteData from "../lib/queries/getQuoteData";
-import getQuoteDataForResc from "../lib/queries/getQuoteDataForResc";
-import getQuoteDataForCancel from "../lib/queries/getQuoteDataForCancel";
-import doReschedule from "../lib/queries/doReschedule";
-import doChangeDate from "../lib/queries/doChangeDate";
-import doCancelQuote from "../lib/queries/doCancelQuote";
 import LoaderG from "../components/common/LoaderG";
 import { fuelTypeList } from 'lib/constants'
 
@@ -24,7 +15,7 @@ const LoadingContainer = styled.div`
 `;
 
 export interface IQuote {
-  id: number;
+  id: string;
   fecha: string;
   hora: string;
 }
@@ -63,8 +54,20 @@ export interface IQuoteObtainingError {
   reason: string;
 }
 
+type ApiLikeError = {
+  graphQLErrors: Array<{
+    extensions: {
+      details: IQuoteObtainingError;
+    };
+  }>;
+};
+
+export interface FetchResult<T> {
+  data?: T;
+}
+
 interface QuoteObtainingProviderProps {
-  id: number;
+  id: string | null;
   children: ReactNode;
   plant: string;
   operation: string;
@@ -98,11 +101,11 @@ export const emptySchedulingError: ISchedulingError = {
   reason: "default",
 };
 
-const emptyQuoteSelected = { id: null, fecha: "", hora: "" };
+const emptyQuoteSelected = { id: "", fecha: "", hora: "" };
 
 export type QuoteObtainingContextValue = [
   {
-    error: ApolloError;
+    error: ApiLikeError | null;
     quotes: IQuoteObtaining;
     cancellingQuote: ICancelQuoteObtaining;
     plant: string;
@@ -130,7 +133,7 @@ export type QuoteObtainingContextValue = [
   {
     onSelectVehicleType: (type:string) => void;
     onModifyVehicleType: () => void;
-    onSelectDate: (id: number, fecha: string, hora: string) => void;
+    onSelectDate: (id: string, fecha: string, hora: string) => void;
     onModifyDateAddressChange: () => void;
     resetShift: () => void;
     onChangePaymentPlatform: (paymentPlatform: string) => void;
@@ -174,7 +177,7 @@ export const QuoteObtainingContext = createContext<QuoteObtainingContextValue>([
   {
     onSelectVehicleType: (type: string) => null,
     onModifyVehicleType: () => null,
-    onSelectDate: (id: number, fecha: string, hora: string) => null,
+    onSelectDate: (id: string, fecha: string, hora: string) => null,
     onModifyDateAddressChange: () => null,
     resetShift: () => null,
     onChangePaymentPlatform: () => null,
@@ -236,63 +239,72 @@ export default function QuoteObtainingProvider({
 
   const [cancelQuoteDone, setCancelQuoteDone] = useState<boolean>(false);
 
+  const [error, setError] = useState<ApiLikeError | null>(null);
+  const [quotes, setQuotes] = useState<IQuoteObtaining | null>(null);
+  const [cancellingQuote, setCancellingQuote] = useState<ICancelQuoteObtaining | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
 
-  const [getQuotes, {loading: loadingQuery, error: errorQuery, data: quotesData}] =
-    useLazyQuery<IQuoteObtainingResponse>(getQuoteData,{onError: () => setVehicleTypeSelected(false), fetchPolicy: 'no-cache'});
-
-  const [getQuotesForResc, {loading: loadingQuery2, error: errorQuery2, data: quotesData2}] =
-    useLazyQuery<IQuoteObtainingResponse>(getQuoteDataForResc,{
-      onError: () => {},
-      onCompleted: (data) => {
-        setVehicleType(data.quotes.tipo_vehiculo)
+  const buildError = (reason: string, status?: string): ApiLikeError => ({
+    graphQLErrors: [
+      {
+        extensions: {
+          details: {
+            reason,
+            status,
+          },
+        },
       },
-      fetchPolicy: 'no-cache'});
+    ],
+  });
 
-  const [getQuoteForCancel, {loading: loadingQuery3, error: errorQuery3, data: quotesData3}] =
-  useLazyQuery<ICancelQuoteObtainingResponse>(getQuoteDataForCancel,{
-    onError: () => {},
-    fetchPolicy: 'no-cache'});
-
-  const [doResc, { error: errorMutation, loading: loadingSchedule }] =
-    useMutation<IRescheduleResponse>(doReschedule, {
-      onError: () => {
-        setShowError(true);
-      },
-      onCompleted: (data) => {
-        if (plant === "sanmartin") setChooseQuoteDone(true);
-        else window.location.href = data.Reschedule.url_pago;
-      },
-      fetchPolicy: 'no-cache',
+  const postToBackend = async <T,>(plantCode: string, path: string, body: any): Promise<T> => {
+    const response = await fetch(`/api/backend/${path}?plant=${plantCode}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
     });
 
-  const [doChDate, { error: errorChangeDate, loading: loadingChangeDate }] =
-    useMutation<IRescheduleResponse>(doChangeDate, {
-      onError: () => {
-        setShowError(true);
-      },
-      onCompleted: (data) => {
-        setChangeDateDone(true);
-      },
-    });
+    let payload: any = {};
+    try {
+      payload = await response.json();
+    } catch (_e) {
+      payload = {};
+    }
 
-  const [doCanQuote, { error: errorCancelQuote, loading: loadingCancelQuote }] =
-    useMutation<IRescheduleResponse>(doCancelQuote, {
-      onError: () => {
-        setShowError(true);
-      },
-      onCompleted: (data) => {
-        setCancelQuoteDone(true);
-      },
-    });
+    if (!response.ok) {
+      const reason = payload?.reason ||
+        (response.status === 400
+          ? 'BAD_REQUEST'
+          : response.status === 500
+            ? 'INTERNAL_ERROR_SERVER'
+            : 'UNKNOWN_ERROR');
+      throw buildError(reason, String(response.status));
+    }
 
-  const onSelectVehicleType = useCallback((type: string):Promise<
-  FetchResult<IQuoteObtainingResponse>> => {
+    return payload as T;
+  };
+
+  const onSelectVehicleType = useCallback(async (type: string): Promise<FetchResult<IQuoteObtainingResponse>> => {
     setVehicleType(type);
     setVehicleTypeSelected(true);
-    return getQuotes({variables: {vehicleType: type, plant, operation}});
-  }, []);
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await postToBackend<IQuoteObtaining>(plant, 'api/auth/getQuotes', {
+        tipoVehiculo: type,
+      });
+      setQuotes({ ...data, plant });
+      return { data: { quotes: { ...data, plant } } };
+    } catch (e: any) {
+      setVehicleTypeSelected(false);
+      setError(e);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [plant]);
 
-  const onSelectDate = (id: number, fecha: string, hora: string): void => {
+  const onSelectDate = (id: string, fecha: string, hora: string): void => {
     setQuoteSelected({ id, fecha, hora });
     setDateSelected(true);
   };
@@ -351,69 +363,95 @@ export default function QuoteObtainingProvider({
   };
 
   useEffect(() => {
-    if(id && operation==='changeDate'){
-      getQuotesForResc({variables: {id, plant, operation}});
-    }
-    if(id && operation==='cancelQuote'){
-      getQuoteForCancel({variables: {id, plant, operation}});
-    }
-  },[id])
-
-
-  const onSubmit = useCallback((): Promise<
-    FetchResult<IRescheduleResponse>
-  > => {
-    let variables = {};
-    if (operation === "cancelQuote") {
-      variables = {
-        plant,
-        email,
-        quoteId: id,
-      };
-      return doCanQuote({
-        variables,
-      });
-    }
-    if (operation === "chooseQuote") {
-      variables = {
-        plant,
-        email,
-        nombre,
-        dominio,
-        telefono,
-        anio,
-        combustible: fuelType,
-        quoteId: quoteSelected.id,
-        tipoVehiculo: quotesData?.quotes.tipo_vehiculo,
-        paymentMethod: paymentPlatform,
-      };
-      return doResc({
-        variables,
-      });
-    }
-    variables = {
-      plant,
-      email,
-      quoteId: quoteSelected.id,
-      oldQuoteId: id,
+    const loadInitial = async () => {
+      if (!id) return;
+      setLoading(true);
+      setError(null);
+      try {
+        if (operation === 'changeDate') {
+          const data = await postToBackend<IQuoteObtaining>(plant, 'api/auth/getQuotesForResc', {
+            id_turno: id,
+          });
+          setQuotes({ ...data, plant });
+          setVehicleType(data.tipo_vehiculo);
+        }
+        if (operation === 'cancelQuote') {
+          const data = await postToBackend<ICancelQuoteObtaining>(plant, 'api/auth/getQuoteForCancel', {
+            id_turno: id,
+          });
+          setCancellingQuote({ ...data, plant });
+        }
+      } catch (e: any) {
+        setError(e);
+      } finally {
+        setLoading(false);
+      }
     };
-    return doChDate({
-      variables,
-    });
-  // }, [plant, email, quoteSelected, data, paymentPlatform]);
-}, [plant, email, nombre, dominio, telefono, anio, fuelType, quoteSelected, quotesData, paymentPlatform]);
 
-  const error =
-   errorQuery || errorQuery2 || errorQuery3 || errorMutation || errorChangeDate || errorCancelQuote;
+    loadInitial();
+  }, [id, operation, plant]);
 
-  const loading = loadingQuery || loadingQuery2 || loadingQuery3 || loadingSchedule || loadingChangeDate || loadingCancelQuote;
+
+  const onSubmit = useCallback(async (): Promise<FetchResult<IRescheduleResponse>> => {
+    setLoading(true);
+    setError(null);
+    setShowError(false);
+    try {
+      if (operation === 'cancelQuote') {
+        await postToBackend<ICancelQuoteResponseReschedule>(plant, 'api/auth/cancelQuote', {
+          email,
+          id_turno: id,
+        });
+        setCancelQuoteDone(true);
+        return { data: { Reschedule: { url_pago: '' } } };
+      }
+
+      if (operation === 'chooseQuote') {
+        const data = await postToBackend<IRescheduleResponseReschedule>(plant, 'api/auth/confQuote', {
+          origen: 'T',
+          email,
+          dominio,
+          nombre,
+          telefono,
+          anio,
+          combustible: fuelType,
+          id_turno: quoteSelected.id,
+          tipo_vehiculo: quotes?.tipo_vehiculo,
+          plataforma_pago: paymentPlatform || '',
+        });
+
+        if (plant === 'sanmartin') {
+          setChooseQuoteDone(true);
+        } else if (data?.url_pago) {
+          window.location.href = data.url_pago;
+        }
+
+        return { data: { Reschedule: data } };
+      }
+
+      await postToBackend<IDateChangeResponseReschedule>(plant, 'api/auth/changeDate', {
+        email,
+        id_turno_nuevo: quoteSelected.id,
+        id_turno_ant: id,
+      });
+
+      setChangeDateDone(true);
+      return { data: { Reschedule: { url_pago: '' } } };
+    } catch (e: any) {
+      setShowError(true);
+      setError(e);
+      throw e;
+    } finally {
+      setLoading(false);
+    }
+  }, [operation, plant, email, id, dominio, nombre, telefono, anio, fuelType, quoteSelected.id, quotes, paymentPlatform]);
 
   const value: QuoteObtainingContextValue = useMemo(
     () => [
       {
         error,
-        quotes: quotesData?.quotes || quotesData2?.quotes,
-        cancellingQuote: quotesData3?.quotes || null,
+        quotes: quotes,
+        cancellingQuote: cancellingQuote,
         plant,
         operation,
         vehicleType,
@@ -454,9 +492,8 @@ export default function QuoteObtainingProvider({
     ],
     [
       error,
-      quotesData?.quotes,
-      quotesData2?.quotes,
-      quotesData3?.quotes,
+      quotes,
+      cancellingQuote,
       plant,
       quoteSelected,
       vehicleType,
