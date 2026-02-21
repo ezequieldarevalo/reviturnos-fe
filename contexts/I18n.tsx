@@ -18,7 +18,7 @@ export function I18nProvider({
   lang,
   messages,
   children,
-}: React.Props<any> & II18nContextValue): JSX.Element {
+}: React.PropsWithChildren<II18nContextValue>): JSX.Element {
   return (
     <I18nContext.Provider value={{ lang, messages }}>
       {children}

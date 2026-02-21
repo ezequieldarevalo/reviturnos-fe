@@ -119,7 +119,7 @@ function Calendar(): JSX.Element {
     return quotes.turnos.filter((record) => record.fecha + "T00:00:00" === day);
   };
 
-  const getShiftByHour = (hour: string): IQuote => {
+  const getShiftByHour = (hour: string): IQuote | undefined => {
     const dayQuotes = getShiftsByDay(selectedDay);
     return dayQuotes.find((record) => record.hora === hour);
   };
@@ -133,7 +133,7 @@ function Calendar(): JSX.Element {
   const [selectedShift, setSelectedShift] = useState<string>(
     quoteSelected.hora || getShiftsByDay(quotes.dias[0])[0].hora
   );
-  const [selectedQuoteId, setSelectedQuoteId] = useState<number>(
+  const [selectedQuoteId, setSelectedQuoteId] = useState<string>(
     quoteSelected.id || getShiftsByDay(quotes.dias[0])[0].id
   );
 
@@ -155,6 +155,7 @@ function Calendar(): JSX.Element {
   const handleChangeShift = (e) => {
     const quoteHour = e.target.value;
     const quote = getShiftByHour(quoteHour);
+    if (!quote) return;
     setSelectedShift(quote.hora);
     setSelectedQuoteId(quote.id);
   };
