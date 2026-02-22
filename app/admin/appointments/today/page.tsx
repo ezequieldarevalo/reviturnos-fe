@@ -365,19 +365,30 @@ export default function TodayAppointmentsPage() {
                 <article className="today-turno-card" key={t.id}>
                   <div className="today-turno-head">
                     <div className="today-turno-summary">
-                      <span className="today-summary-item"><b>Fecha:</b> {toDateLabel(t.fecha || t.appointmentDate)}</span>
                       <span className="today-summary-item"><b>Hora:</b> {toHourLabel(t.hora || t.appointmentTime)}</span>
-                      <span className="today-summary-item"><b>Estado:</b> {estadoLabel(t.estado)}</span>
                       <span className="today-summary-item"><b>Dominio:</b> {(t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase()}</span>
                       <span className="today-summary-item"><b>Cliente:</b> {t.datos?.customerName || t.datos?.nombre || '-'}</span>
-                      <span className="today-summary-item"><b>Pago:</b> ${Number(t.cobro?.amount ?? t.cobro?.monto ?? 0).toLocaleString('es-AR')}</span>
+                      <span className="today-summary-item"><b>Estado pago:</b> {pagoEstadoLabel(t.cobro?.status)}</span>
+                      <span className="today-summary-item"><b>Vehículo:</b> {t.datos?.tipo_vehiculo || '-'}</span>
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="today-btn today-btn-light" onClick={() => toggleTurnoDetail(t.id)}>
-                        {isExpanded ? 'Ocultar' : 'Ver'}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <button
+                        className="today-btn today-btn-light"
+                        onClick={() => toggleTurnoDetail(t.id)}
+                        aria-label={isExpanded ? 'Ocultar detalle' : 'Ver detalle'}
+                        title={isExpanded ? 'Ocultar detalle' : 'Ver detalle'}
+                        style={{ minWidth: 42, width: 42, padding: 0 }}
+                      >
+                        {isExpanded ? '▴' : '▾'}
                       </button>
-                      <button className="today-btn today-btn-primary" onClick={() => goToManage(t)}>
-                        Gestionar
+                      <button
+                        className="today-btn today-btn-primary"
+                        onClick={() => goToManage(t)}
+                        aria-label="Gestionar turno"
+                        title="Gestionar turno"
+                        style={{ minWidth: 42, width: 42, padding: 0 }}
+                      >
+                        ⚙
                       </button>
                     </div>
                   </div>
@@ -509,14 +520,15 @@ export default function TodayAppointmentsPage() {
           justify-content: space-between;
           gap: 10px;
           align-items: center;
-          flex-wrap: wrap;
+          flex-wrap: nowrap;
         }
 
         .today-turno-summary {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          display: flex;
           gap: 8px;
           width: 100%;
+          overflow-x: auto;
+          white-space: nowrap;
         }
 
         .today-summary-item {
@@ -586,17 +598,11 @@ export default function TodayAppointmentsPage() {
         }
 
         @media (max-width: 980px) {
-          .today-turno-summary {
-            grid-template-columns: 1fr 1fr;
+          .today-turno-head {
+            flex-wrap: wrap;
           }
 
           .today-detail-grid {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        @media (max-width: 640px) {
-          .today-turno-summary {
             grid-template-columns: 1fr;
           }
         }
