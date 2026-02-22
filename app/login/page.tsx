@@ -115,7 +115,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const loginResp = await fetch('/api/backend/auth/login', {
+      const loginResp = await fetch(`/api/backend/auth/login?plant=${encodeURIComponent(plantCode)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
