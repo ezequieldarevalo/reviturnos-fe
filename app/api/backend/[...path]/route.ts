@@ -39,7 +39,8 @@ async function proxy(req: NextRequest, path: string[], plant?: string) {
     );
   }
 
-  const targetBaseUrl = `${baseUrl.replace(/\/$/, '')}/${path.join('/')}`;
+  const normalizedPath = path[0] === 'api' ? path : ['api', ...path];
+  const targetBaseUrl = `${baseUrl.replace(/\/$/, '')}/${normalizedPath.join('/')}`;
   const forwardSearchParams = new URLSearchParams(req.nextUrl.searchParams);
   forwardSearchParams.delete('plant');
   const targetUrl = forwardSearchParams.toString()
