@@ -39,8 +39,16 @@ const normalizeDay = (value: unknown): string => {
   const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
 
-  const latam = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const latam = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
   if (latam) return `${latam[3]}-${latam[2]}-${latam[1]}`;
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = `${parsed.getMonth() + 1}`.padStart(2, '0');
+    const d = `${parsed.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
 
   return raw.slice(0, 10);
 };
@@ -49,8 +57,17 @@ const normalizeHour = (value: unknown): string => {
   const raw = String(value || '').trim();
   if (!raw) return '';
 
-  const hhmm = raw.match(/(\d{2}):(\d{2})/);
-  if (hhmm) return `${hhmm[1]}:${hhmm[2]}`;
+  const hhmm = raw.match(/(?:^|\D)(\d{1,2}):(\d{2})(?::\d{2})?(?:\D|$)/);
+  if (hhmm) {
+    const hour = `${Number(hhmm[1])}`.padStart(2, '0');
+    return `${hour}:${hhmm[2]}`;
+  }
+
+  const compact = raw.match(/^(\d{1,2})[.:](\d{2})$/);
+  if (compact) {
+    const hour = `${Number(compact[1])}`.padStart(2, '0');
+    return `${hour}:${compact[2]}`;
+  }
 
   return raw;
 };
@@ -58,7 +75,15 @@ const normalizeHour = (value: unknown): string => {
 const normalizeReprogSlots = (rawSlots: any[]): ReprogSlot[] => {
   return (rawSlots || [])
     .map((slot: any) => {
-      const fecha = normalizeDay(slot?.fecha || slot?.dia || slot?.date || slot?.fecha_turno);
+      const fecha = normalizeDay(
+        slot?.fecha ||
+          slot?.dia ||
+          slot?.date ||
+          slot?.fecha_turno ||
+          slot?.fecha_hora ||
+          slot?.datetime ||
+          slot?.fechaHora,
+      );
       const horaRaw = String(
         slot?.hora ||
           slot?.horario ||
@@ -163,6 +188,16 @@ export default function ManageAppointmentsPage() {
       min: days[0] || '',
       max: days[days.length - 1] || '',
     };
+  }, [availableReprogDays]);
+  const availableDaysByMonth = useMemo(() => {
+    const grouped = new Map<string, string[]>();
+    for (const day of availableReprogDays.map((d) => normalizeDay(d)).filter(Boolean).sort()) {
+      const monthKey = day.slice(0, 7);
+      const current = grouped.get(monthKey) || [];
+      current.push(day);
+      grouped.set(monthKey, current);
+    }
+    return Array.from(grouped.entries());
   }, [availableReprogDays]);
   const selectedManualSlot = useMemo(
     () => manualSlotsByDate.find((slot) => slot.hora === newTime) || null,
@@ -612,31 +647,55 @@ export default function ManageAppointmentsPage() {
               <p style={{ margin: 0, color: '#5f6d8f' }}>Consultando disponibilidad de la planta...</p>
             ) : reprogSlots.length ? (
               <>
-                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr auto' }}>
-                  <input
-                    className="admin-input"
-                    type="date"
-                    value={newDate}
-                    min={availableDayBounds.min || undefined}
-                    max={availableDayBounds.max || undefined}
-                    onChange={(e) => {
-                      const day = normalizeDay(e.target.value);
-                      if (!day) {
-                        setNewDate('');
-                        setNewTime('');
-                        return;
-                      }
-                      if (!availableDaySet.has(day)) {
-                        setError('Ese día no tiene disponibilidad para esta planta.');
-                        setNewDate('');
-                        setNewTime('');
-                        return;
-                      }
-                      setError('');
-                      setNewDate(day);
-                      setNewTime('');
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, color: '#5f6d8f', marginBottom: 6 }}>Seleccioná un día</div>
+                  <div
+                    style={{
+                      maxHeight: 180,
+                      overflowY: 'auto',
+                      border: '1px solid #d7def4',
+                      borderRadius: 10,
+                      padding: 10,
+                      background: '#f8faff',
                     }}
-                  />
+                  >
+                    {availableDaysByMonth.map(([month, days]) => (
+                      <div key={month} style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: '#344a8a', marginBottom: 6 }}>
+                          {month}
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {days.map((day) => {
+                            const selected = normalizeDay(newDate) === day;
+                            return (
+                              <button
+                                key={day}
+                                type="button"
+                                className={`admin-btn ${selected ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
+                                style={{ minWidth: 106 }}
+                                onClick={() => {
+                                  if (!availableDaySet.has(day)) {
+                                    setError('Ese día no tiene disponibilidad para esta planta.');
+                                    setNewDate('');
+                                    setNewTime('');
+                                    return;
+                                  }
+                                  setError('');
+                                  setNewDate(day);
+                                  setNewTime('');
+                                }}
+                              >
+                                {day}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr auto' }}>
                   <select className="admin-select" value={newTime} onChange={(e) => setNewTime(e.target.value)}>
                     <option value="">{newDate ? 'Seleccionar horario' : 'Primero seleccioná un día'}</option>
                     {manualSlotTimes.map((time) => (
@@ -651,7 +710,7 @@ export default function ManageAppointmentsPage() {
                 </div>
 
                 <p style={{ margin: '10px 0 0', color: '#5f6d8f', fontSize: 13 }}>
-                  Elegí fecha y horario. Solo se aceptan días con disponibilidad de la planta.
+                  Elegí día y horario. Solo se aceptan días con disponibilidad de la planta.
                 </p>
               </>
             ) : (
