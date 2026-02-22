@@ -32,6 +32,17 @@ export default function PaymentsAuditPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [turnos, setTurnos] = useState<TurnoDia[]>([]);
 
+  const toDateLabel = (value?: string) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('es-AR');
+    }
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    return value;
+  };
+
   const paidRows = useMemo(() => turnos.filter((t) => !!t.cobro), [turnos]);
   const total = useMemo(
     () => paidRows.reduce((acc, row) => acc + Number(row.cobro?.amount || 0), 0),
@@ -39,9 +50,12 @@ export default function PaymentsAuditPage() {
   );
 
   const loadToday = async (current: AdminSession) => {
-    const resp = await adminApi<{ turnosDia: TurnoDia[]; diasFuturos: string[] }>(current, 'auth/turDiaAct');
+    const resp = await adminApi<{ turnosDia: TurnoDia[]; diasFuturos: any[] }>(current, 'auth/turDiaAct');
+    const normalizedDates = (resp?.diasFuturos || [])
+      .map((d: any) => (typeof d === 'string' ? d : d?.fecha || ''))
+      .filter(Boolean);
     setTurnos(resp?.turnosDia || []);
-    setAvailableDates(resp?.diasFuturos || []);
+    setAvailableDates(normalizedDates);
     setSelectedDate('');
   };
 
@@ -135,38 +149,46 @@ export default function PaymentsAuditPage() {
   if (loading) return <main className="admin-loading">Cargando auditoría...</main>;
 
   return (
-    <main className="admin-page">
+    <main className="admin-page space-y-4">
       <h1 className="admin-title">Planta · Auditoría de pagos</h1>
 
       {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <div className="admin-card">
-        <label>
-          Fecha:
-          <select className="admin-select" value={selectedDate} onChange={(e) => onChangeDate(e.target.value)}>
+      <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-lg shadow-blue-100/40">
+        <label className="block max-w-xs text-sm font-semibold text-slate-700">
+          Fecha
+          <select
+            className="mt-1 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-[15px] text-slate-900 outline-none transition focus:ring-4 focus:ring-blue-100"
+            value={selectedDate}
+            onChange={(e) => onChangeDate(e.target.value)}
+          >
             <option value="">Hoy</option>
             {availableDates.map((date) => (
               <option key={date} value={date}>
-                {date}
+                {toDateLabel(date)}
               </option>
             ))}
           </select>
         </label>
       </div>
 
-      <div className="admin-card">
+      <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-lg shadow-blue-100/40 text-slate-800">
         <b>Pagos registrados:</b> {paidRows.length} · <b>Total:</b> ${total.toLocaleString('es-AR')}
-        <button className="admin-btn admin-btn-primary" style={{ marginLeft: 10 }} onClick={exportCsv} disabled={!paidRows.length}>
+        <button
+          className="ml-3 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-violet-700 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={exportCsv}
+          disabled={!paidRows.length}
+        >
           Exportar CSV
         </button>
       </div>
 
-      <section className="admin-card">
+      <section className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-lg shadow-blue-100/40">
         <h3 className="admin-card-title">Detalle</h3>
-        <ul className="admin-list">
+        <ul className="space-y-2">
           {paidRows.map((row) => (
-            <li key={row.id} className="admin-list-item">
-              {row.fecha} {row.hora} · {row.datos?.customerName || '-'} ·{' '}
+            <li key={row.id} className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[15px] leading-6 text-slate-800">
+              {toDateLabel(row.fecha)} {row.hora?.slice(0, 5) || row.hora} · {row.datos?.customerName || '-'} ·{' '}
               {(row.datos?.vehicleDomain || '-').toUpperCase()} · ${Number(row.cobro?.amount || 0).toLocaleString('es-AR')} ·{' '}
               {row.cobro?.method || '-'} · {row.cobro?.status || '-'}
             </li>

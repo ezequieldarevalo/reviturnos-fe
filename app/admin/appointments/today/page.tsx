@@ -32,10 +32,33 @@ export default function TodayAppointmentsPage() {
   const [selectedDate, setSelectedDate] = useState('');
   const [turnos, setTurnos] = useState<Turno[]>([]);
 
+  const toDateLabel = (value?: string) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('es-AR');
+    }
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    }
+    return value;
+  };
+
+  const toHourLabel = (value?: string) => {
+    if (!value) return '--:--';
+    const hourMatch = value.match(/^(\d{2}:\d{2})/);
+    if (hourMatch) return hourMatch[1];
+    return value;
+  };
+
   const loadToday = async (current: AdminSession) => {
-    const resp = await adminApi<{ turnosDia: Turno[]; diasFuturos: string[] }>(current, 'auth/turDiaAct');
+    const resp = await adminApi<{ turnosDia: Turno[]; diasFuturos: any[] }>(current, 'auth/turDiaAct');
+    const normalizedDates = (resp?.diasFuturos || [])
+      .map((d: any) => (typeof d === 'string' ? d : d?.fecha || ''))
+      .filter(Boolean);
     setTurnos(resp?.turnosDia || []);
-    setDates(resp?.diasFuturos || []);
+    setDates(normalizedDates);
     setSelectedDate('');
   };
 
@@ -87,39 +110,50 @@ export default function TodayAppointmentsPage() {
   if (loading) return <main className="admin-loading">Cargando turnos...</main>;
 
   return (
-    <main className="admin-page">
+    <main className="admin-page space-y-4">
       <h1 className="admin-title">Planta · Turnos</h1>
 
       {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <div className="admin-card">
-        <div className="admin-actions">
-          <label style={{ minWidth: 220 }}>
-            Día:
-            <select className="admin-select" value={selectedDate} onChange={(e) => loadByDate(e.target.value)}>
+      <div className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-lg shadow-blue-100/40">
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="min-w-[220px] text-sm font-semibold text-slate-700">
+            Día
+            <select
+              className="mt-1 w-full rounded-xl border border-blue-200 bg-white px-3 py-2 text-[15px] text-slate-900 outline-none transition focus:ring-4 focus:ring-blue-100"
+              value={selectedDate}
+              onChange={(e) => loadByDate(e.target.value)}
+            >
               <option value="">Hoy</option>
               {dates.map((d) => (
                 <option key={d} value={d}>
-                  {d}
+                  {toDateLabel(d)}
                 </option>
               ))}
             </select>
           </label>
-          <button className="admin-btn admin-btn-secondary" onClick={() => loadByDate(selectedDate)}>
+
+          <button
+            className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 font-semibold text-blue-800 transition hover:bg-blue-100"
+            onClick={() => loadByDate(selectedDate)}
+          >
             Actualizar
           </button>
-          <button className="admin-btn admin-btn-primary" onClick={() => window.print()}>
+          <button
+            className="rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 px-4 py-2 font-semibold text-white shadow-md transition hover:from-blue-700 hover:to-violet-700"
+            onClick={() => window.print()}
+          >
             Imprimir
           </button>
         </div>
       </div>
 
-      <section className="admin-card">
+      <section className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-lg shadow-blue-100/40">
         <h3 className="admin-card-title">Listado ({turnos.length})</h3>
-        <ul className="admin-list">
+        <ul className="space-y-2">
           {turnos.map((t) => (
-            <li key={t.id} className="admin-list-item">
-              {t.fecha} {t.hora} · {t.estado} · {t.datos?.customerName || '-'} ·{' '}
+            <li key={t.id} className="rounded-xl border border-slate-200 bg-slate-50/70 px-3 py-2 text-[15px] leading-6 text-slate-800">
+              <span className="font-semibold">{toDateLabel(t.fecha)}</span> {toHourLabel(t.hora)} · {t.estado} · {t.datos?.customerName || '-'} ·{' '}
               {(t.datos?.vehicleDomain || '-').toUpperCase()} · Tel: {t.datos?.customerPhone || t.datos?.telefono || '-'} · Pago: $
               {Number(t.cobro?.amount ?? t.cobro?.monto ?? 0).toLocaleString('es-AR')}
             </li>

@@ -80,8 +80,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!ready) return null;
 
   return (
-    <div className="admin-shell">
-      <aside className="admin-sidebar">
+    <div className="admin-shell bg-gradient-to-b from-slate-50 via-blue-50/30 to-indigo-50/40">
+      <aside className="admin-sidebar border-r border-blue-100/70 bg-white/95 backdrop-blur">
         <div className="admin-brand">Admin</div>
         <p className="admin-user-meta">
           {session?.user?.email || '-'}
@@ -96,7 +96,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={active ? 'admin-nav-link active' : 'admin-nav-link'}
+                className={
+                  active
+                    ? 'admin-nav-link active shadow-sm ring-1 ring-blue-200'
+                    : 'admin-nav-link hover:shadow-sm'
+                }
               >
                 {item.label}
               </Link>
