@@ -179,14 +179,40 @@ export default function TodayAppointmentsPage() {
       </body>
       </html>`;
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
-    if (!printWindow) return;
-    printWindow.document.open();
-    printWindow.document.write(html);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc || !iframe.contentWindow) {
+      document.body.removeChild(iframe);
+      return;
+    }
+
+    doc.open();
+    doc.write(html);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) document.body.removeChild(iframe);
+      }, 500);
+    }, 120);
+  };
+
+  const goToManage = (turno: Turno) => {
+    const qs = new URLSearchParams();
+    if (turno.id) qs.set('id', turno.id);
+    const domain = (turno.datos?.vehicleDomain || turno.datos?.dominio || '').toUpperCase();
+    if (domain) qs.set('domain', domain);
+    router.push(`/admin/appointments/manage${qs.toString() ? `?${qs.toString()}` : ''}`);
   };
 
   const pagoEstadoLabel = (estado?: string) => {
@@ -339,15 +365,21 @@ export default function TodayAppointmentsPage() {
                 <article className="today-turno-card" key={t.id}>
                   <div className="today-turno-head">
                     <div className="today-turno-summary">
-                      <span><b>{toDateLabel(t.fecha || t.appointmentDate)}</b></span>
-                      <span>{toHourLabel(t.hora || t.appointmentTime)}</span>
-                      <span>{estadoLabel(t.estado)}</span>
-                      <span>{(t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase()}</span>
-                      <span>{t.datos?.customerName || t.datos?.nombre || '-'}</span>
+                      <span className="today-summary-item"><b>Fecha:</b> {toDateLabel(t.fecha || t.appointmentDate)}</span>
+                      <span className="today-summary-item"><b>Hora:</b> {toHourLabel(t.hora || t.appointmentTime)}</span>
+                      <span className="today-summary-item"><b>Estado:</b> {estadoLabel(t.estado)}</span>
+                      <span className="today-summary-item"><b>Dominio:</b> {(t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase()}</span>
+                      <span className="today-summary-item"><b>Cliente:</b> {t.datos?.customerName || t.datos?.nombre || '-'}</span>
+                      <span className="today-summary-item"><b>Pago:</b> ${Number(t.cobro?.amount ?? t.cobro?.monto ?? 0).toLocaleString('es-AR')}</span>
                     </div>
-                    <button className="today-btn today-btn-light" onClick={() => toggleTurnoDetail(t.id)}>
-                      {isExpanded ? 'Ocultar' : 'Ver'}
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="today-btn today-btn-light" onClick={() => toggleTurnoDetail(t.id)}>
+                        {isExpanded ? 'Ocultar' : 'Ver'}
+                      </button>
+                      <button className="today-btn today-btn-primary" onClick={() => goToManage(t)}>
+                        Gestionar
+                      </button>
+                    </div>
                   </div>
 
                   {isExpanded ? (
@@ -481,11 +513,19 @@ export default function TodayAppointmentsPage() {
         }
 
         .today-turno-summary {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          width: 100%;
+        }
+
+        .today-summary-item {
+          border: 1px solid #e1e8fa;
+          border-radius: 8px;
+          background: #f7f9ff;
+          padding: 6px 8px;
           color: #2b3d67;
-          font-size: 14px;
+          font-size: 13px;
         }
 
         .today-detail-grid {
@@ -546,7 +586,17 @@ export default function TodayAppointmentsPage() {
         }
 
         @media (max-width: 980px) {
+          .today-turno-summary {
+            grid-template-columns: 1fr 1fr;
+          }
+
           .today-detail-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        @media (max-width: 640px) {
+          .today-turno-summary {
             grid-template-columns: 1fr;
           }
         }
