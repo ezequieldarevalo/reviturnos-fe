@@ -28,7 +28,59 @@ type ReprogSlot = {
   id: string;
   fecha: string;
   hora: string;
+  horaRaw?: string;
   lineId?: string | null;
+};
+
+const normalizeDay = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const latam = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (latam) return `${latam[3]}-${latam[2]}-${latam[1]}`;
+
+  return raw.slice(0, 10);
+};
+
+const normalizeHour = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const hhmm = raw.match(/(\d{2}):(\d{2})/);
+  if (hhmm) return `${hhmm[1]}:${hhmm[2]}`;
+
+  return raw;
+};
+
+const normalizeReprogSlots = (rawSlots: any[]): ReprogSlot[] => {
+  return (rawSlots || [])
+    .map((slot: any) => {
+      const fecha = normalizeDay(slot?.fecha || slot?.dia || slot?.date || slot?.fecha_turno);
+      const horaRaw = String(
+        slot?.hora ||
+          slot?.horario ||
+          slot?.time ||
+          slot?.hora_turno ||
+          slot?.fecha_hora ||
+          '',
+      ).trim();
+      const hora = normalizeHour(horaRaw);
+
+      const idValue = slot?.id || slot?.id_turno || slot?.turno_id || '';
+      const lineValue = slot?.lineId ?? slot?.line_id ?? slot?.id_linea ?? slot?.linea ?? null;
+
+      return {
+        id: idValue ? String(idValue) : '',
+        fecha,
+        hora,
+        horaRaw: horaRaw || hora,
+        lineId: lineValue !== null && lineValue !== undefined ? String(lineValue) : null,
+      } as ReprogSlot;
+    })
+    .filter((slot) => !!slot.fecha && !!slot.hora);
 };
 
 type DayAppointment = {
@@ -85,23 +137,28 @@ export default function ManageAppointmentsPage() {
     [dayAppointments, statusFilter],
   );
   const availableReprogDays = useMemo(
-    () => (reprogDays.length ? reprogDays : Array.from(new Set(reprogSlots.map((slot) => slot.fecha))).sort()),
+    () =>
+      (
+        reprogDays.length
+          ? reprogDays.map((d) => normalizeDay(d)).filter(Boolean)
+          : Array.from(new Set(reprogSlots.map((slot) => normalizeDay(slot.fecha))))
+      ).sort(),
     [reprogSlots, reprogDays],
   );
   const manualSlotsByDate = useMemo(
-    () => reprogSlots.filter((slot) => slot.fecha === newDate),
+    () => reprogSlots.filter((slot) => normalizeDay(slot.fecha) === normalizeDay(newDate)),
     [reprogSlots, newDate],
   );
   const manualSlotTimes = useMemo(
-    () => Array.from(new Set(manualSlotsByDate.map((slot) => slot.hora))).sort(),
+    () => Array.from(new Set(manualSlotsByDate.map((slot) => slot.hora))).sort((a, b) => a.localeCompare(b)),
     [manualSlotsByDate],
   );
   const availableDaySet = useMemo(
-    () => new Set(availableReprogDays.map((d) => String(d).slice(0, 10))),
+    () => new Set(availableReprogDays.map((d) => normalizeDay(d))),
     [availableReprogDays],
   );
   const availableDayBounds = useMemo(() => {
-    const days = availableReprogDays.map((d) => String(d).slice(0, 10)).filter(Boolean).sort();
+    const days = availableReprogDays.map((d) => normalizeDay(d)).filter(Boolean).sort();
     return {
       min: days[0] || '',
       max: days[days.length - 1] || '',
@@ -176,7 +233,7 @@ export default function ManageAppointmentsPage() {
             body: { id_turno: turnoId },
           },
         );
-        const normalizedSlots = (quotesForResc?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
+        const normalizedSlots = normalizeReprogSlots(quotesForResc?.turnos || []);
         setReprogDays(quotesForResc?.dias || []);
         setReprogSlots(normalizedSlots);
         setNewDate('');
@@ -199,7 +256,7 @@ export default function ManageAppointmentsPage() {
             },
           );
           setReprogDays(quotes?.dias || []);
-          const normalizedSlots = (quotes?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
+          const normalizedSlots = normalizeReprogSlots(quotes?.turnos || []);
           setReprogSlots(normalizedSlots);
           setNewDate('');
           setNewTime('');
@@ -210,7 +267,7 @@ export default function ManageAppointmentsPage() {
               session,
               `auth/obtTurRep?tipo_vehiculo=${encodeURIComponent(safeVehicleType)}`,
             );
-            const normalizedSlots = slots?.turnos || [];
+            const normalizedSlots = normalizeReprogSlots(slots?.turnos || []);
             setReprogDays([]);
             setReprogSlots(normalizedSlots);
             setNewDate('');
@@ -328,7 +385,7 @@ export default function ManageAppointmentsPage() {
         : {
             turno_id: appointment.id,
             nueva_fecha: newDate,
-            nueva_hora: newTime,
+            nueva_hora: selectedManualSlot.horaRaw || newTime,
             nueva_linea: selectedManualSlot.lineId ? Number(selectedManualSlot.lineId) : undefined,
           };
 
@@ -563,7 +620,7 @@ export default function ManageAppointmentsPage() {
                     min={availableDayBounds.min || undefined}
                     max={availableDayBounds.max || undefined}
                     onChange={(e) => {
-                      const day = e.target.value;
+                      const day = normalizeDay(e.target.value);
                       if (!day) {
                         setNewDate('');
                         setNewTime('');
@@ -571,6 +628,8 @@ export default function ManageAppointmentsPage() {
                       }
                       if (!availableDaySet.has(day)) {
                         setError('Ese día no tiene disponibilidad para esta planta.');
+                        setNewDate('');
+                        setNewTime('');
                         return;
                       }
                       setError('');
