@@ -47,8 +47,9 @@ export default function TodayAppointmentsPage() {
   const [dates, setDates] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState('');
   const [turnos, setTurnos] = useState<Turno[]>([]);
-  const [selectedTurno, setSelectedTurno] = useState<Turno | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [expandedTurnoId, setExpandedTurnoId] = useState<string | null>(null);
+  const [turnoDetails, setTurnoDetails] = useState<Record<string, Turno>>({});
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
 
   const toDateLabel = (value?: string) => {
     if (!value) return '-';
@@ -95,7 +96,13 @@ export default function TodayAppointmentsPage() {
 
   const pagoMetodoLabel = (metodo?: string) => {
     if (!metodo) return '-';
-    const key = metodo.toLowerCase();
+    const raw = metodo.trim();
+    const [methodPart, ...rest] = raw.split(/\s-\s/);
+    const suffix = rest.length ? ` - ${rest.join(' - ')}` : '';
+    const key = methodPart
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/-/g, '_');
     const map: Record<string, string> = {
       credit_card: 'Tarjeta de crédito',
       debit_card: 'Tarjeta de débito',
@@ -110,7 +117,76 @@ export default function TodayAppointmentsPage() {
       transferencia: 'Transferencia',
       efectivo: 'Efectivo',
     };
-    return map[key] || metodo.replace(/_/g, ' ');
+    const normalized = map[key] || methodPart.replace(/_/g, ' ');
+    return `${normalized}${suffix}`;
+  };
+
+  const escapeHtml = (value: unknown) =>
+    String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+
+  const handlePrintBasic = () => {
+    const rows = turnos
+      .map((t) => {
+        const fecha = toDateLabel(t.fecha || t.appointmentDate);
+        const hora = toHourLabel(t.hora || t.appointmentTime);
+        const estado = estadoLabel(t.estado);
+        const cliente = t.datos?.customerName || t.datos?.nombre || '-';
+        const dominio = (t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase();
+        const pago = `$${Number(t.cobro?.amount ?? t.cobro?.monto ?? 0).toLocaleString('es-AR')}`;
+
+        return `<tr>
+          <td>${escapeHtml(fecha)}</td>
+          <td>${escapeHtml(hora)}</td>
+          <td>${escapeHtml(estado)}</td>
+          <td>${escapeHtml(cliente)}</td>
+          <td>${escapeHtml(dominio)}</td>
+          <td>${escapeHtml(pago)}</td>
+        </tr>`;
+      })
+      .join('');
+
+    const titleDate = selectedDate ? toDateLabel(selectedDate) : 'Hoy';
+    const html = `<!doctype html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Turnos ${escapeHtml(titleDate)}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 18px; color: #1f2d4f; }
+          h1 { margin: 0 0 6px; font-size: 20px; }
+          p { margin: 0 0 12px; color: #4e5e84; }
+          table { width: 100%; border-collapse: collapse; }
+          th, td { border: 1px solid #cfd8ee; padding: 8px; text-align: left; font-size: 13px; }
+          th { background: #eef3ff; }
+        </style>
+      </head>
+      <body>
+        <h1>Turnos del día</h1>
+        <p>Día: ${escapeHtml(titleDate)} · Total: ${turnos.length}</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Hora</th><th>Estado</th><th>Cliente</th><th>Dominio</th><th>Pago</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </body>
+      </html>`;
+
+    const printWindow = window.open('', '_blank', 'noopener,noreferrer,width=1024,height=768');
+    if (!printWindow) return;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
   };
 
   const pagoEstadoLabel = (estado?: string) => {
@@ -136,6 +212,8 @@ export default function TodayAppointmentsPage() {
       .map((d: any) => (typeof d === 'string' ? d : d?.fecha || ''))
       .filter(Boolean);
     setTurnos(resp?.turnosDia || []);
+    setTurnoDetails({});
+    setExpandedTurnoId(null);
     setDates(normalizedDates);
     setSelectedDate('');
   };
@@ -180,25 +258,38 @@ export default function TodayAppointmentsPage() {
       }
       const resp = await adminApi<Turno[]>(session, `auth/turDiaFut?dia=${encodeURIComponent(dia)}`);
       setTurnos(resp || []);
+      setTurnoDetails({});
+      setExpandedTurnoId(null);
     } catch (e: any) {
       setError(e?.message || 'No se pudieron cargar turnos del día');
     }
   };
 
-  const openTurnoDetail = async (idTurno: string) => {
+  const toggleTurnoDetail = async (idTurno: string) => {
+    if (expandedTurnoId === idTurno) {
+      setExpandedTurnoId(null);
+      return;
+    }
+
+    setExpandedTurnoId(idTurno);
+    if (turnoDetails[idTurno]) return;
     if (!session) return;
+
     try {
       setError('');
-      setDetailLoading(true);
+      setDetailLoadingId(idTurno);
       const detail = await adminApi<Turno>(session, 'auth/tur', {
         method: 'POST',
         body: { id_turno: idTurno },
       });
-      setSelectedTurno(detail || null);
+
+      if (detail) {
+        setTurnoDetails((prev) => ({ ...prev, [idTurno]: detail }));
+      }
     } catch (e: any) {
       setError(e?.message || 'No se pudo cargar el detalle del turno');
     } finally {
-      setDetailLoading(false);
+      setDetailLoadingId(null);
     }
   };
 
@@ -228,7 +319,7 @@ export default function TodayAppointmentsPage() {
             <button className="today-btn today-btn-light" onClick={() => loadByDate(selectedDate)}>
               Actualizar
             </button>
-            <button className="today-btn today-btn-primary" onClick={() => window.print()}>
+            <button className="today-btn today-btn-primary" onClick={handlePrintBasic}>
               Imprimir
             </button>
           </div>
@@ -240,86 +331,63 @@ export default function TodayAppointmentsPage() {
         {!turnos.length ? (
           <p className="today-empty">No hay turnos para el día seleccionado.</p>
         ) : (
-          <div className="today-table-wrap">
-            <table className="today-table">
-              <thead>
-                <tr>
-                  <th>Fecha</th>
-                  <th>Hora</th>
-                  <th>Estado</th>
-                  <th>Cliente</th>
-                  <th>Dominio</th>
-                  <th>Teléfono</th>
-                  <th>Pago</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {turnos.map((t) => (
-                  <tr key={t.id}>
-                    <td>{toDateLabel(t.fecha)}</td>
-                    <td>{toHourLabel(t.hora)}</td>
-                    <td>{estadoLabel(t.estado)}</td>
-                    <td>{t.datos?.customerName || t.datos?.nombre || '-'}</td>
-                    <td>{(t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase()}</td>
-                    <td>{t.datos?.customerPhone || t.datos?.telefono || '-'}</td>
-                    <td>${Number(t.cobro?.amount ?? t.cobro?.monto ?? 0).toLocaleString('es-AR')}</td>
-                    <td>
-                      <button className="today-btn today-btn-light" onClick={() => openTurnoDetail(t.id)}>
-                        Ver
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="today-cards">
+            {turnos.map((t) => {
+              const detail = turnoDetails[t.id] || t;
+              const isExpanded = expandedTurnoId === t.id;
+              return (
+                <article className="today-turno-card" key={t.id}>
+                  <div className="today-turno-head">
+                    <div className="today-turno-summary">
+                      <span><b>{toDateLabel(t.fecha || t.appointmentDate)}</b></span>
+                      <span>{toHourLabel(t.hora || t.appointmentTime)}</span>
+                      <span>{estadoLabel(t.estado)}</span>
+                      <span>{(t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase()}</span>
+                      <span>{t.datos?.customerName || t.datos?.nombre || '-'}</span>
+                    </div>
+                    <button className="today-btn today-btn-light" onClick={() => toggleTurnoDetail(t.id)}>
+                      {isExpanded ? 'Ocultar' : 'Ver'}
+                    </button>
+                  </div>
+
+                  {isExpanded ? (
+                    <div className="today-detail-grid">
+                      <section>
+                        <h4>Turno</h4>
+                        <p><b>ID:</b> {detail.id}</p>
+                        <p><b>Fecha:</b> {toDateLabel(detail.fecha || detail.appointmentDate)}</p>
+                        <p><b>Hora:</b> {toHourLabel(detail.hora || detail.appointmentTime)}</p>
+                        <p><b>Estado:</b> {estadoLabel(detail.estado)}</p>
+                      </section>
+
+                      <section>
+                        <h4>Cliente / Vehículo</h4>
+                        <p><b>Nombre:</b> {detail.datos?.customerName || detail.datos?.nombre || '-'}</p>
+                        <p><b>Email:</b> {detail.datos?.email || '-'}</p>
+                        <p><b>Tel:</b> {detail.datos?.customerPhone || detail.datos?.telefono || '-'}</p>
+                        <p><b>Dominio:</b> {(detail.datos?.vehicleDomain || detail.datos?.dominio || '-').toUpperCase()}</p>
+                        <p><b>Tipo vehículo:</b> {detail.datos?.tipo_vehiculo || '-'}</p>
+                        <p><b>Marca/Modelo:</b> {detail.datos?.marca || '-'} / {detail.datos?.modelo || '-'}</p>
+                      </section>
+
+                      <section>
+                        <h4>Pago</h4>
+                        <p><b>Monto:</b> ${Number(detail.cobro?.amount ?? detail.cobro?.monto ?? 0).toLocaleString('es-AR')}</p>
+                        <p><b>Método:</b> {pagoMetodoLabel(detail.cobro?.method || detail.cobro?.metodo)}</p>
+                        <p><b>Referencia:</b> {detail.cobro?.reference || detail.cobro?.nro_op || '-'}</p>
+                        <p><b>Estado:</b> {pagoEstadoLabel(detail.cobro?.status)}</p>
+                        <p><b>Fecha pago:</b> {toDateTimeLabel(detail.cobro?.fecha)}</p>
+                      </section>
+                    </div>
+                  ) : null}
+
+                  {detailLoadingId === t.id ? <p className="today-loading">Cargando detalle...</p> : null}
+                </article>
+              );
+            })}
           </div>
         )}
       </section>
-
-      {selectedTurno ? (
-        <div className="modal-backdrop" onClick={() => setSelectedTurno(null)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-head">
-              <h3>Detalle del turno #{selectedTurno.id}</h3>
-              <button className="today-btn today-btn-light" onClick={() => setSelectedTurno(null)}>
-                Cerrar
-              </button>
-            </div>
-
-            <div className="modal-grid">
-              <section>
-                <h4>Turno</h4>
-                <p><b>Fecha:</b> {toDateLabel(selectedTurno.fecha || selectedTurno.appointmentDate)}</p>
-                <p><b>Hora:</b> {toHourLabel(selectedTurno.hora || selectedTurno.appointmentTime)}</p>
-                <p><b>Estado:</b> {estadoLabel(selectedTurno.estado)}</p>
-              </section>
-
-              <section>
-                <h4>Cliente / Vehículo</h4>
-                <p><b>Nombre:</b> {selectedTurno.datos?.customerName || selectedTurno.datos?.nombre || '-'}</p>
-                <p><b>Email:</b> {selectedTurno.datos?.email || '-'}</p>
-                <p><b>Tel:</b> {selectedTurno.datos?.customerPhone || selectedTurno.datos?.telefono || '-'}</p>
-                <p><b>Dominio:</b> {(selectedTurno.datos?.vehicleDomain || selectedTurno.datos?.dominio || '-').toUpperCase()}</p>
-                <p><b>Tipo vehículo:</b> {selectedTurno.datos?.tipo_vehiculo || '-'}</p>
-                <p><b>Marca/Modelo:</b> {selectedTurno.datos?.marca || '-'} / {selectedTurno.datos?.modelo || '-'}</p>
-                <p><b>Año / Combustible:</b> {selectedTurno.datos?.anio || '-'} / {selectedTurno.datos?.combustible || '-'}</p>
-              </section>
-
-              <section>
-                <h4>Pago</h4>
-                <p><b>Monto:</b> ${Number(selectedTurno.cobro?.amount ?? selectedTurno.cobro?.monto ?? 0).toLocaleString('es-AR')}</p>
-                <p><b>Método:</b> {pagoMetodoLabel(selectedTurno.cobro?.method || selectedTurno.cobro?.metodo)}</p>
-                <p><b>Referencia:</b> {selectedTurno.cobro?.reference || selectedTurno.cobro?.nro_op || '-'}</p>
-                <p><b>Estado:</b> {pagoEstadoLabel(selectedTurno.cobro?.status)}</p>
-                <p><b>Fecha pago:</b> {toDateTimeLabel(selectedTurno.cobro?.fecha)}</p>
-              </section>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {detailLoading ? <div className="admin-alert">Cargando detalle...</div> : null}
 
       <style jsx>{`
         .today-card {
@@ -392,70 +460,64 @@ export default function TodayAppointmentsPage() {
           color: #fff;
         }
 
-        .today-table-wrap {
-          width: 100%;
-          overflow-x: auto;
-        }
-
-        .today-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 14px;
-          color: #24365d;
-        }
-
-        .today-table th,
-        .today-table td {
-          border-bottom: 1px solid #e6ecfb;
-          padding: 10px 8px;
-          text-align: left;
-          vertical-align: middle;
-        }
-
-        .today-table th {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.02em;
-          color: #5b6f9e;
-        }
-
-        .modal-backdrop {
-          position: fixed;
-          inset: 0;
-          background: rgba(15, 23, 42, 0.48);
+        .today-cards {
           display: grid;
-          place-items: center;
-          z-index: 50;
-          padding: 20px;
+          gap: 10px;
         }
 
-        .modal-card {
-          width: min(920px, 100%);
-          max-height: 88vh;
-          overflow: auto;
-          background: #fff;
-          border-radius: 16px;
-          border: 1px solid #dbe5fb;
-          box-shadow: 0 18px 50px rgba(19, 39, 89, 0.35);
-          padding: 16px;
+        .today-turno-card {
+          border: 1px solid #dce6fb;
+          border-radius: 12px;
+          background: #fbfdff;
+          padding: 10px;
         }
 
-        .modal-head {
+        .today-turno-head {
           display: flex;
           justify-content: space-between;
+          gap: 10px;
           align-items: center;
-          margin-bottom: 10px;
+          flex-wrap: wrap;
         }
 
-        .modal-head h3 {
-          margin: 0;
-          color: #1c2c55;
+        .today-turno-summary {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          color: #2b3d67;
+          font-size: 14px;
         }
 
-        .modal-grid {
+        .today-detail-grid {
+          margin-top: 10px;
           display: grid;
-          gap: 12px;
+          gap: 10px;
           grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .today-detail-grid section {
+          border: 1px solid #e1e8fa;
+          border-radius: 12px;
+          background: #f8faff;
+          padding: 10px;
+        }
+
+        .today-detail-grid h4 {
+          margin: 0 0 8px;
+          color: #1e3364;
+          font-size: 14px;
+        }
+
+        .today-detail-grid p {
+          margin: 4px 0;
+          font-size: 13px;
+          color: #2c3e67;
+        }
+
+        .today-loading {
+          margin: 8px 0 0;
+          color: #5e6f96;
+          font-size: 13px;
         }
 
         .modal-grid section {
@@ -484,7 +546,7 @@ export default function TodayAppointmentsPage() {
         }
 
         @media (max-width: 980px) {
-          .modal-grid {
+          .today-detail-grid {
             grid-template-columns: 1fr;
           }
         }
