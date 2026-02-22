@@ -96,6 +96,17 @@ export default function ManageAppointmentsPage() {
     () => Array.from(new Set(manualSlotsByDate.map((slot) => slot.hora))).sort(),
     [manualSlotsByDate],
   );
+  const availableDaySet = useMemo(
+    () => new Set(availableReprogDays.map((d) => String(d).slice(0, 10))),
+    [availableReprogDays],
+  );
+  const availableDayBounds = useMemo(() => {
+    const days = availableReprogDays.map((d) => String(d).slice(0, 10)).filter(Boolean).sort();
+    return {
+      min: days[0] || '',
+      max: days[days.length - 1] || '',
+    };
+  }, [availableReprogDays]);
   const selectedManualSlot = useMemo(
     () => manualSlotsByDate.find((slot) => slot.hora === newTime) || null,
     [manualSlotsByDate, newTime],
@@ -544,23 +555,29 @@ export default function ManageAppointmentsPage() {
               <p style={{ margin: 0, color: '#5f6d8f' }}>Consultando disponibilidad de la planta...</p>
             ) : reprogSlots.length ? (
               <>
-                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
-                  <select
-                    className="admin-select"
+                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr auto' }}>
+                  <input
+                    className="admin-input"
+                    type="date"
                     value={newDate}
+                    min={availableDayBounds.min || undefined}
+                    max={availableDayBounds.max || undefined}
                     onChange={(e) => {
                       const day = e.target.value;
+                      if (!day) {
+                        setNewDate('');
+                        setNewTime('');
+                        return;
+                      }
+                      if (!availableDaySet.has(day)) {
+                        setError('Ese día no tiene disponibilidad para esta planta.');
+                        return;
+                      }
+                      setError('');
                       setNewDate(day);
                       setNewTime('');
                     }}
-                  >
-                    <option value="">Seleccionar día</option>
-                    {availableReprogDays.map((day) => (
-                      <option key={day} value={day}>
-                        {day}
-                      </option>
-                    ))}
-                  </select>
+                  />
                   <select className="admin-select" value={newTime} onChange={(e) => setNewTime(e.target.value)}>
                     <option value="">{newDate ? 'Seleccionar horario' : 'Primero seleccioná un día'}</option>
                     {manualSlotTimes.map((time) => (
@@ -569,14 +586,13 @@ export default function ManageAppointmentsPage() {
                       </option>
                     ))}
                   </select>
-                  <input className="admin-input" value={selectedManualSlot?.lineId ? String(selectedManualSlot.lineId) : '-'} readOnly />
                   <button className="admin-btn admin-btn-primary" onClick={doReschedule} disabled={!newDate || !newTime || !selectedManualSlot}>
                     Reprogramar
                   </button>
                 </div>
 
                 <p style={{ margin: '10px 0 0', color: '#5f6d8f', fontSize: 13 }}>
-                  Primero seleccioná día, luego horario disponible. Al confirmar se recarga el detalle del turno actual.
+                  Elegí fecha y horario. Solo se aceptan días con disponibilidad de la planta.
                 </p>
               </>
             ) : (
