@@ -7,8 +7,10 @@ import { getAdminSession, AdminSession } from 'lib/adminAuth';
 
 type Turno = {
   id: string;
-  fecha: string;
-  hora: string;
+  fecha?: string;
+  hora?: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
   estado: string;
   datos?: {
     nombre?: string;
@@ -68,6 +70,18 @@ export default function TodayAppointmentsPage() {
     return value;
   };
 
+  const toDateTimeLabel = (value?: string) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.toLocaleDateString('es-AR')} ${parsed.toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    }
+    return value;
+  };
+
   const estadoLabel = (estado?: string) => {
     if (!estado) return '-';
     if (estado === 'C') return 'Confirmado';
@@ -77,6 +91,43 @@ export default function TodayAppointmentsPage() {
     if (estado === 'F') return 'Resultado - Rechazado';
     if (estado === 'T') return 'Realizado';
     return estado;
+  };
+
+  const pagoMetodoLabel = (metodo?: string) => {
+    if (!metodo) return '-';
+    const key = metodo.toLowerCase();
+    const map: Record<string, string> = {
+      credit_card: 'Tarjeta de crédito',
+      debit_card: 'Tarjeta de débito',
+      prepaid_card: 'Tarjeta prepaga',
+      account_money: 'Dinero en cuenta',
+      bank_transfer: 'Transferencia bancaria',
+      ticket: 'Pago en efectivo',
+      atm: 'Cajero automático',
+      digital_currency: 'Moneda digital',
+      wallet_purchase: 'Billetera digital',
+      mercadopago: 'Mercado Pago',
+      transferencia: 'Transferencia',
+      efectivo: 'Efectivo',
+    };
+    return map[key] || metodo.replace(/_/g, ' ');
+  };
+
+  const pagoEstadoLabel = (estado?: string) => {
+    if (!estado) return '-';
+    const key = estado.toLowerCase();
+    const map: Record<string, string> = {
+      approved: 'Aprobado',
+      pending: 'Pendiente',
+      authorized: 'Autorizado',
+      in_process: 'En proceso',
+      in_mediation: 'En mediación',
+      rejected: 'Rechazado',
+      cancelled: 'Cancelado',
+      refunded: 'Reintegrado',
+      charged_back: 'Contracargo',
+    };
+    return map[key] || estado.replace(/_/g, ' ');
   };
 
   const loadToday = async (current: AdminSession) => {
@@ -239,8 +290,8 @@ export default function TodayAppointmentsPage() {
             <div className="modal-grid">
               <section>
                 <h4>Turno</h4>
-                <p><b>Fecha:</b> {toDateLabel(selectedTurno.fecha)}</p>
-                <p><b>Hora:</b> {toHourLabel(selectedTurno.hora)}</p>
+                <p><b>Fecha:</b> {toDateLabel(selectedTurno.fecha || selectedTurno.appointmentDate)}</p>
+                <p><b>Hora:</b> {toHourLabel(selectedTurno.hora || selectedTurno.appointmentTime)}</p>
                 <p><b>Estado:</b> {estadoLabel(selectedTurno.estado)}</p>
               </section>
 
@@ -258,10 +309,10 @@ export default function TodayAppointmentsPage() {
               <section>
                 <h4>Pago</h4>
                 <p><b>Monto:</b> ${Number(selectedTurno.cobro?.amount ?? selectedTurno.cobro?.monto ?? 0).toLocaleString('es-AR')}</p>
-                <p><b>Método:</b> {selectedTurno.cobro?.method || selectedTurno.cobro?.metodo || '-'}</p>
+                <p><b>Método:</b> {pagoMetodoLabel(selectedTurno.cobro?.method || selectedTurno.cobro?.metodo)}</p>
                 <p><b>Referencia:</b> {selectedTurno.cobro?.reference || selectedTurno.cobro?.nro_op || '-'}</p>
-                <p><b>Estado:</b> {selectedTurno.cobro?.status || '-'}</p>
-                <p><b>Fecha pago:</b> {selectedTurno.cobro?.fecha || '-'}</p>
+                <p><b>Estado:</b> {pagoEstadoLabel(selectedTurno.cobro?.status)}</p>
+                <p><b>Fecha pago:</b> {toDateTimeLabel(selectedTurno.cobro?.fecha)}</p>
               </section>
             </div>
           </div>
