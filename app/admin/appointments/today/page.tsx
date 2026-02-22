@@ -12,6 +12,7 @@ type Turno = {
   appointmentDate?: string;
   appointmentTime?: string;
   estado: string;
+  status?: string;
   datos?: {
     nombre?: string;
     customerName?: string;
@@ -20,7 +21,9 @@ type Turno = {
     telefono?: string;
     customerPhone?: string;
     email?: string;
+    vehicleType?: string;
     tipo_vehiculo?: string;
+    tipoVehiculo?: string;
     marca?: string;
     modelo?: string;
     anio?: number | string;
@@ -362,28 +365,37 @@ export default function TodayAppointmentsPage() {
               const detail = turnoDetails[t.id] || t;
               const isExpanded = expandedTurnoId === t.id;
               return (
-                <article className="today-turno-card" key={t.id}>
+                <article
+                  className="today-turno-card"
+                  key={t.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleTurnoDetail(t.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleTurnoDetail(t.id);
+                    }
+                  }}
+                >
                   <div className="today-turno-head">
                     <div className="today-turno-summary">
                       <span className="today-summary-item"><b>Hora:</b> {toHourLabel(t.hora || t.appointmentTime)}</span>
                       <span className="today-summary-item"><b>Dominio:</b> {(t.datos?.vehicleDomain || t.datos?.dominio || '-').toUpperCase()}</span>
                       <span className="today-summary-item"><b>Cliente:</b> {t.datos?.customerName || t.datos?.nombre || '-'}</span>
-                      <span className="today-summary-item"><b>Estado pago:</b> {pagoEstadoLabel(t.cobro?.status)}</span>
-                      <span className="today-summary-item"><b>Vehículo:</b> {t.datos?.tipo_vehiculo || '-'}</span>
+                      <span className="today-summary-item"><b>Estado:</b> {estadoLabel(t.estado || t.status)}</span>
+                      <span className="today-summary-item"><b>Vehículo:</b> {t.datos?.vehicleType || t.datos?.tipo_vehiculo || t.datos?.tipoVehiculo || '-'}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <button
-                        className="today-btn today-btn-light"
-                        onClick={() => toggleTurnoDetail(t.id)}
-                        aria-label={isExpanded ? 'Ocultar detalle' : 'Ver detalle'}
-                        title={isExpanded ? 'Ocultar detalle' : 'Ver detalle'}
-                        style={{ minWidth: 42, width: 42, padding: 0 }}
-                      >
+                      <span className="today-chevron" aria-hidden>
                         {isExpanded ? '▴' : '▾'}
-                      </button>
+                      </span>
                       <button
                         className="today-btn today-btn-primary"
-                        onClick={() => goToManage(t)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          goToManage(t);
+                        }}
                         aria-label="Gestionar turno"
                         title="Gestionar turno"
                         style={{ minWidth: 42, width: 42, padding: 0 }}
@@ -400,7 +412,7 @@ export default function TodayAppointmentsPage() {
                         <p><b>ID:</b> {detail.id}</p>
                         <p><b>Fecha:</b> {toDateLabel(detail.fecha || detail.appointmentDate)}</p>
                         <p><b>Hora:</b> {toHourLabel(detail.hora || detail.appointmentTime)}</p>
-                        <p><b>Estado:</b> {estadoLabel(detail.estado)}</p>
+                        <p><b>Estado:</b> {estadoLabel(detail.estado || detail.status)}</p>
                       </section>
 
                       <section>
@@ -409,7 +421,7 @@ export default function TodayAppointmentsPage() {
                         <p><b>Email:</b> {detail.datos?.email || '-'}</p>
                         <p><b>Tel:</b> {detail.datos?.customerPhone || detail.datos?.telefono || '-'}</p>
                         <p><b>Dominio:</b> {(detail.datos?.vehicleDomain || detail.datos?.dominio || '-').toUpperCase()}</p>
-                        <p><b>Tipo vehículo:</b> {detail.datos?.tipo_vehiculo || '-'}</p>
+                        <p><b>Tipo vehículo:</b> {detail.datos?.vehicleType || detail.datos?.tipo_vehiculo || detail.datos?.tipoVehiculo || '-'}</p>
                         <p><b>Marca/Modelo:</b> {detail.datos?.marca || '-'} / {detail.datos?.modelo || '-'}</p>
                       </section>
 
@@ -513,6 +525,7 @@ export default function TodayAppointmentsPage() {
           border-radius: 12px;
           background: #fbfdff;
           padding: 10px;
+          cursor: pointer;
         }
 
         .today-turno-head {
@@ -538,6 +551,14 @@ export default function TodayAppointmentsPage() {
           padding: 6px 8px;
           color: #2b3d67;
           font-size: 13px;
+        }
+
+        .today-chevron {
+          color: #425ea7;
+          font-size: 16px;
+          line-height: 1;
+          width: 18px;
+          text-align: center;
         }
 
         .today-detail-grid {
