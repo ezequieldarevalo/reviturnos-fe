@@ -18,6 +18,9 @@ type CreateForm = {
   apellido: string;
   email: string;
   telefono: string;
+  marca: string;
+  modelo: string;
+  anio: string;
   tipo_vehiculo: string;
   combustible: string;
   linea: string;
@@ -31,6 +34,9 @@ const initialForm: CreateForm = {
   apellido: '',
   email: '',
   telefono: '',
+  marca: '',
+  modelo: '',
+  anio: '',
   tipo_vehiculo: '',
   combustible: '',
   linea: '',
@@ -104,6 +110,7 @@ export default function CreateAppointmentPage() {
       const payload = {
         ...form,
         dominio: form.dominio.trim().toUpperCase(),
+        anio: form.anio ? Number(form.anio) : undefined,
         linea: form.linea ? Number(form.linea) : undefined,
       };
 
@@ -222,6 +229,26 @@ export default function CreateAppointmentPage() {
             value={form.telefono}
             onChange={(e) => setForm((p) => ({ ...p, telefono: e.target.value }))}
             required
+          />
+
+          <input
+            className="admin-input"
+            placeholder="Marca"
+            value={form.marca}
+            onChange={(e) => setForm((p) => ({ ...p, marca: e.target.value }))}
+          />
+          <input
+            className="admin-input"
+            placeholder="Modelo"
+            value={form.modelo}
+            onChange={(e) => setForm((p) => ({ ...p, modelo: e.target.value }))}
+          />
+
+          <input
+            className="admin-input"
+            placeholder="Año"
+            value={form.anio}
+            onChange={(e) => setForm((p) => ({ ...p, anio: e.target.value }))}
           />
 
           <input

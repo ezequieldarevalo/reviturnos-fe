@@ -24,6 +24,12 @@ type AppointmentData = {
   };
 };
 
+type ReprogSlot = {
+  id: string;
+  fecha: string;
+  hora: string;
+};
+
 type DayAppointment = {
   id: string;
   fecha: string;
@@ -49,6 +55,8 @@ export default function ManageAppointmentsPage() {
   const [newDate, setNewDate] = useState('');
   const [newTime, setNewTime] = useState('');
   const [newLine, setNewLine] = useState('');
+  const [reprogSlots, setReprogSlots] = useState<ReprogSlot[]>([]);
+  const [reprogDay, setReprogDay] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState('efectivo');
   const [paymentRef, setPaymentRef] = useState('');
@@ -72,6 +80,14 @@ export default function ManageAppointmentsPage() {
         ? dayAppointments
         : dayAppointments.filter((a) => a.estado === statusFilter),
     [dayAppointments, statusFilter],
+  );
+  const availableReprogDays = useMemo(
+    () => Array.from(new Set(reprogSlots.map((slot) => slot.fecha))).sort(),
+    [reprogSlots],
+  );
+  const reprogSlotsByDay = useMemo(
+    () => reprogSlots.filter((slot) => !reprogDay || slot.fecha === reprogDay),
+    [reprogSlots, reprogDay],
   );
 
   const loadDayAppointments = async (currentSession: AdminSession) => {
@@ -119,6 +135,22 @@ export default function ManageAppointmentsPage() {
       `auth/turId?id_turno=${encodeURIComponent(id)}`,
     );
     setAppointment(data);
+
+    const vehicleType = data?.datos?.vehicleType;
+    if (vehicleType) {
+      try {
+        const slots = await adminApi<{ turnos: ReprogSlot[] }>(
+          session,
+          `auth/obtTurRep?tipo_vehiculo=${encodeURIComponent(vehicleType)}`,
+        );
+        setReprogSlots(slots?.turnos || []);
+        setReprogDay('');
+      } catch (_e) {
+        setReprogSlots([]);
+      }
+    } else {
+      setReprogSlots([]);
+    }
   };
 
   const findById = async () => {
@@ -211,6 +243,27 @@ export default function ManageAppointmentsPage() {
       await loadDayAppointments(session);
     } catch (e: any) {
       setError(e?.message || 'No se pudo reprogramar el turno');
+    }
+  };
+
+  const doRescheduleBySlot = async (newTurnoId: string) => {
+    if (!session || !appointment?.id || !newTurnoId) return;
+    try {
+      clearMessages();
+      const resp = await adminApi<{ turno_id?: string }>(session, 'auth/repTur', {
+        method: 'POST',
+        body: {
+          id_turno_ant: appointment.id,
+          id_turno_nuevo: newTurnoId,
+        },
+      });
+      const updatedId = resp?.turno_id || newTurnoId;
+      setSearchId(updatedId);
+      setSuccess('Turno reprogramado por disponibilidad');
+      await refreshById(updatedId);
+      await loadDayAppointments(session);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo reprogramar por disponibilidad');
     }
   };
 
@@ -345,6 +398,38 @@ export default function ManageAppointmentsPage() {
                     Reprogramar
                   </button>
                 </div>
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <h4 style={{ marginBottom: 6 }}>Reprogramar por disponibilidad (legacy)</h4>
+                {reprogSlots.length ? (
+                  <>
+                    <label>
+                      Día:
+                      <select className="admin-select" value={reprogDay} onChange={(e) => setReprogDay(e.target.value)}>
+                        <option value="">Seleccionar</option>
+                        {availableReprogDays.map((day) => (
+                          <option key={day} value={day}>
+                            {day}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="admin-actions" style={{ marginTop: 8 }}>
+                      {reprogSlotsByDay.map((slot) => (
+                        <button
+                          key={slot.id}
+                          className="admin-btn admin-btn-secondary"
+                          onClick={() => doRescheduleBySlot(slot.id)}
+                        >
+                          {slot.hora?.slice(0, 5) || slot.hora}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ margin: 0, color: '#5f6d8f' }}>No hay disponibilidad cargada para este tipo de vehículo.</p>
+                )}
               </div>
             </section>
           ) : null}

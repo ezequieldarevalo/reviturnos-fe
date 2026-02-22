@@ -13,7 +13,13 @@ type Turno = {
   datos?: {
     customerName?: string;
     vehicleDomain?: string;
+    telefono?: string;
+    customerPhone?: string;
   };
+  cobro?: {
+    amount?: number;
+    monto?: number;
+  } | null;
 };
 
 export default function TodayAppointmentsPage() {
@@ -87,17 +93,25 @@ export default function TodayAppointmentsPage() {
       {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
       <div className="admin-card">
-        <label>
-          Día:
-          <select className="admin-select" value={selectedDate} onChange={(e) => loadByDate(e.target.value)}>
-            <option value="">Hoy</option>
-            {dates.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="admin-actions">
+          <label style={{ minWidth: 220 }}>
+            Día:
+            <select className="admin-select" value={selectedDate} onChange={(e) => loadByDate(e.target.value)}>
+              <option value="">Hoy</option>
+              {dates.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="admin-btn admin-btn-secondary" onClick={() => loadByDate(selectedDate)}>
+            Actualizar
+          </button>
+          <button className="admin-btn admin-btn-primary" onClick={() => window.print()}>
+            Imprimir
+          </button>
+        </div>
       </div>
 
       <section className="admin-card">
@@ -106,7 +120,8 @@ export default function TodayAppointmentsPage() {
           {turnos.map((t) => (
             <li key={t.id} className="admin-list-item">
               {t.fecha} {t.hora} · {t.estado} · {t.datos?.customerName || '-'} ·{' '}
-              {(t.datos?.vehicleDomain || '-').toUpperCase()}
+              {(t.datos?.vehicleDomain || '-').toUpperCase()} · Tel: {t.datos?.customerPhone || t.datos?.telefono || '-'} · Pago: $
+              {Number(t.cobro?.amount ?? t.cobro?.monto ?? 0).toLocaleString('es-AR')}
             </li>
           ))}
         </ul>
