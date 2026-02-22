@@ -362,7 +362,13 @@ export default function ManageAppointmentsPage() {
 
   const pagoMetodoLabel = (metodo?: string) => {
     if (!metodo) return '-';
-    const key = metodo.toLowerCase();
+    const raw = metodo.trim();
+    const [methodPart, ...rest] = raw.split(/\s-\s/);
+    const suffix = rest.length ? ` - ${rest.join(' - ')}` : '';
+    const key = methodPart
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/-/g, '_');
     const map: Record<string, string> = {
       credit_card: 'Tarjeta de crédito',
       debit_card: 'Tarjeta de débito',
@@ -377,7 +383,8 @@ export default function ManageAppointmentsPage() {
       transferencia: 'Transferencia',
       efectivo: 'Efectivo',
     };
-    return map[key] || metodo.replace(/_/g, ' ');
+    const normalized = map[key] || methodPart.replace(/_/g, ' ');
+    return `${normalized}${suffix}`;
   };
 
   const pagoEstadoLabel = (estado?: string) => {
@@ -396,6 +403,18 @@ export default function ManageAppointmentsPage() {
     };
     return map[key] || estado.replace(/_/g, ' ');
   };
+
+  const isPaidAppointment = useMemo(() => {
+    const status = (appointment?.estado || appointment?.status || '').toUpperCase();
+    if (status === 'P') return true;
+
+    const paymentStatus = String(appointment?.cobro?.status || '').toLowerCase();
+    if (paymentStatus === 'approved') return true;
+
+    const amount = Number(appointment?.cobro?.amount ?? appointment?.cobro?.monto ?? 0);
+    const hasMethod = !!(appointment?.cobro?.method || appointment?.cobro?.metodo);
+    return amount > 0 && hasMethod;
+  }, [appointment]);
 
   const updateManageQuery = (id?: string, domain?: string) => {
     const qs = new URLSearchParams(searchParams?.toString() || '');
@@ -756,29 +775,35 @@ export default function ManageAppointmentsPage() {
                 <button className="admin-btn admin-btn-primary" onClick={doMarkCompleted}>Marcar como realizado</button>
               </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <h4 style={{ marginBottom: 6 }}>Registrar pago</h4>
-                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
-                  <select className="admin-select" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
-                    <option value="efectivo">efectivo</option>
-                    <option value="mercadopago">mercadopago</option>
-                    <option value="transferencia">transferencia</option>
-                  </select>
-                  <input
-                    className="admin-input"
-                    placeholder="Referencia"
-                    value={paymentRef}
-                    onChange={(e) => setPaymentRef(e.target.value)}
-                  />
-                  <input
-                    className="admin-input"
-                    placeholder="Transaction ID"
-                    value={paymentTx}
-                    onChange={(e) => setPaymentTx(e.target.value)}
-                  />
-                  <button className="admin-btn admin-btn-primary" onClick={doRegisterPayment}>Registrar pago</button>
+              {!isPaidAppointment ? (
+                <div style={{ marginBottom: 12 }}>
+                  <h4 style={{ marginBottom: 6 }}>Registrar pago</h4>
+                  <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
+                    <select className="admin-select" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                      <option value="efectivo">efectivo</option>
+                      <option value="mercadopago">mercadopago</option>
+                      <option value="transferencia">transferencia</option>
+                    </select>
+                    <input
+                      className="admin-input"
+                      placeholder="Referencia"
+                      value={paymentRef}
+                      onChange={(e) => setPaymentRef(e.target.value)}
+                    />
+                    <input
+                      className="admin-input"
+                      placeholder="Transaction ID"
+                      value={paymentTx}
+                      onChange={(e) => setPaymentTx(e.target.value)}
+                    />
+                    <button className="admin-btn admin-btn-primary" onClick={doRegisterPayment}>Registrar pago</button>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ marginBottom: 12, color: '#2f8a52', fontWeight: 600 }}>
+                  Pago ya registrado para este turno.
+                </div>
+              )}
 
               <div>
                 <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
