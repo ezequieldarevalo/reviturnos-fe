@@ -1,16 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-type PlantCode = 'lasheras' | 'maipu' | 'rivadavia' | 'godoycruz' | 'sanmartin';
-
-const VALID_PLANTS: PlantCode[] = ['lasheras', 'maipu', 'rivadavia', 'godoycruz', 'sanmartin'];
 const UNIFIED_BACKEND_URL = process.env.UNIFIED_BACKEND_URL;
 
+function pathRequiresPlant(path: string[]) {
+  const [first, second] = path;
+  if (first !== 'auth') return true;
+
+  if (second === 'login') return false;
+  if (second === 'onboarding') return false;
+  if (second === 'super') return false;
+  if (second === 'user') return false;
+
+  return true;
+}
+
+function isValidPlantCode(value?: string) {
+  if (!value) return false;
+  return /^[a-z0-9-]{2,40}$/.test(value);
+}
+
 async function proxy(req: NextRequest, path: string[], plant?: string) {
-  if (!plant || !VALID_PLANTS.includes(plant as PlantCode)) {
-    return NextResponse.json({ reason: 'BAD_REQUEST', message: 'Invalid plant' }, { status: 400 });
+  const requiresPlant = pathRequiresPlant(path);
+
+  if (requiresPlant && !isValidPlantCode(plant)) {
+    return NextResponse.json(
+      { reason: 'BAD_REQUEST', message: 'Invalid or missing plant' },
+      { status: 400 },
+    );
   }
 
-  const plantCode = plant as PlantCode;
+  const plantCode = plant;
   const baseUrl = UNIFIED_BACKEND_URL;
 
   if (!baseUrl) {
@@ -36,12 +55,15 @@ async function proxy(req: NextRequest, path: string[], plant?: string) {
     }
   }
 
+  const authHeader = req.headers.get('authorization');
+
   try {
     const response = await fetch(targetUrl, {
       method: req.method,
       headers: {
         'Content-Type': 'application/json',
-        'x-plant-code': plantCode,
+        ...(plantCode ? { 'x-plant-code': plantCode } : {}),
+        ...(authHeader ? { authorization: authHeader } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
       cache: 'no-store',

@@ -1,0 +1,178 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { adminApi } from 'lib/adminApi';
+import { AdminSession, getAdminSession } from 'lib/adminAuth';
+
+type TurnoDia = {
+  id: string;
+  fecha: string;
+  hora: string;
+  estado: string;
+  datos?: {
+    customerName?: string;
+    vehicleDomain?: string;
+  };
+  cobro?: {
+    amount?: number;
+    method?: string;
+    reference?: string;
+    status?: string;
+  } | null;
+};
+
+export default function PaymentsAuditPage() {
+  const router = useRouter();
+  const [session, setSession] = useState<AdminSession | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [turnos, setTurnos] = useState<TurnoDia[]>([]);
+
+  const paidRows = useMemo(() => turnos.filter((t) => !!t.cobro), [turnos]);
+  const total = useMemo(
+    () => paidRows.reduce((acc, row) => acc + Number(row.cobro?.amount || 0), 0),
+    [paidRows],
+  );
+
+  const loadToday = async (current: AdminSession) => {
+    const resp = await adminApi<{ turnosDia: TurnoDia[]; diasFuturos: string[] }>(current, 'auth/turDiaAct');
+    setTurnos(resp?.turnosDia || []);
+    setAvailableDates(resp?.diasFuturos || []);
+    setSelectedDate('');
+  };
+
+  useEffect(() => {
+    const current = getAdminSession();
+    if (!current) {
+      router.replace('/login');
+      return;
+    }
+
+    if (current.user.role === 'superadmin') {
+      router.replace('/admin/super/plants');
+      return;
+    }
+
+    setSession(current);
+
+    const load = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        await loadToday(current);
+      } catch (e: any) {
+        setError(e?.message || 'No se pudo cargar la auditoría');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [router]);
+
+  const onChangeDate = async (dia: string) => {
+    if (!session) return;
+    try {
+      setError('');
+      setSelectedDate(dia);
+      if (!dia) {
+        await loadToday(session);
+        return;
+      }
+      const resp = await adminApi<TurnoDia[]>(session, `auth/turDiaFut?dia=${encodeURIComponent(dia)}`);
+      setTurnos(resp || []);
+    } catch (e: any) {
+      setError(e?.message || 'No se pudo filtrar por fecha');
+    }
+  };
+
+  const exportCsv = () => {
+    const header = [
+      'id_turno',
+      'fecha',
+      'hora',
+      'cliente',
+      'dominio',
+      'monto',
+      'metodo',
+      'estado_pago',
+      'referencia',
+    ];
+
+    const rows = paidRows.map((row) => [
+      row.id,
+      row.fecha,
+      row.hora,
+      row.datos?.customerName || '',
+      (row.datos?.vehicleDomain || '').toUpperCase(),
+      String(Number(row.cobro?.amount || 0)),
+      row.cobro?.method || '',
+      row.cobro?.status || '',
+      row.cobro?.reference || '',
+    ]);
+
+    const csv = [header, ...rows]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? '').replace(/"/g, '""')}"`)
+          .join(','),
+      )
+      .join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pagos_${selectedDate || 'hoy'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading) return <main>Cargando auditoría...</main>;
+
+  return (
+    <main>
+      <h1>Planta · Auditoría de pagos</h1>
+
+      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+
+      <div style={{ marginBottom: 10 }}>
+        <label>
+          Fecha: 
+          <select value={selectedDate} onChange={(e) => onChangeDate(e.target.value)}>
+            <option value="">Hoy</option>
+            {availableDates.map((date) => (
+              <option key={date} value={date}>
+                {date}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div style={{ marginBottom: 10 }}>
+        <b>Pagos registrados:</b> {paidRows.length} · <b>Total:</b> ${total.toLocaleString('es-AR')}
+        <button style={{ marginLeft: 10 }} onClick={exportCsv} disabled={!paidRows.length}>
+          Exportar CSV
+        </button>
+      </div>
+
+      <section style={{ border: '1px solid #ddd', padding: 12 }}>
+        <h3 style={{ marginTop: 0 }}>Detalle</h3>
+        <ul>
+          {paidRows.map((row) => (
+            <li key={row.id} style={{ marginBottom: 6 }}>
+              {row.fecha} {row.hora} · {row.datos?.customerName || '-'} ·{' '}
+              {(row.datos?.vehicleDomain || '-').toUpperCase()} · ${Number(row.cobro?.amount || 0).toLocaleString('es-AR')} ·{' '}
+              {row.cobro?.method || '-'} · {row.cobro?.status || '-'}
+            </li>
+          ))}
+        </ul>
+      </section>
+    </main>
+  );
+}
