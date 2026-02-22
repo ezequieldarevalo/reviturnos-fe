@@ -58,6 +58,8 @@ export default function ManageAppointmentsPage() {
   const [reprogSlots, setReprogSlots] = useState<ReprogSlot[]>([]);
   const [reprogDays, setReprogDays] = useState<string[]>([]);
   const [reprogDay, setReprogDay] = useState('');
+  const [reprogLoading, setReprogLoading] = useState(false);
+  const [reprogModalOpen, setReprogModalOpen] = useState(false);
 
   const [paymentMethod, setPaymentMethod] = useState('efectivo');
   const [paymentRef, setPaymentRef] = useState('');
@@ -141,6 +143,89 @@ export default function ManageAppointmentsPage() {
     setSuccess('');
   };
 
+  const loadRescheduleAvailability = async (turnoId: string, vehicleType?: string) => {
+    if (!session) return;
+
+    setReprogLoading(true);
+    try {
+      try {
+        const quotesForResc = await adminApi<{ dias?: string[]; turnos?: ReprogSlot[] }>(
+          session,
+          'auth/getQuotesForResc',
+          {
+            method: 'POST',
+            body: { id_turno: turnoId },
+          },
+        );
+        const normalizedSlots = (quotesForResc?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
+        setReprogDays(quotesForResc?.dias || []);
+        setReprogSlots(normalizedSlots);
+        const firstDay = (quotesForResc?.dias || [])[0] || normalizedSlots[0]?.fecha || '';
+        setNewDate(firstDay);
+        const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
+        setNewTime(firstSlotForDay?.hora || '');
+        setReprogDay('');
+        return;
+      } catch (_e0) {
+        // fallback below
+      }
+
+      const safeVehicleType = vehicleType || appointment?.datos?.vehicleType || (appointment as any)?.datos?.tipo_vehiculo;
+
+      if (safeVehicleType) {
+        try {
+          const quotes = await adminApi<{ dias?: string[]; turnos?: ReprogSlot[] }>(
+            session,
+            'auth/getQuotes',
+            {
+              method: 'POST',
+              body: { tipoVehiculo: safeVehicleType },
+            },
+          );
+          setReprogDays(quotes?.dias || []);
+          const normalizedSlots = (quotes?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
+          setReprogSlots(normalizedSlots);
+          const firstDay = (quotes?.dias || [])[0] || normalizedSlots[0]?.fecha || '';
+          setNewDate(firstDay);
+          const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
+          setNewTime(firstSlotForDay?.hora || '');
+          setReprogDay('');
+          return;
+        } catch (_e1) {
+          try {
+            const slots = await adminApi<{ turnos: ReprogSlot[] }>(
+              session,
+              `auth/obtTurRep?tipo_vehiculo=${encodeURIComponent(safeVehicleType)}`,
+            );
+            const normalizedSlots = slots?.turnos || [];
+            setReprogDays([]);
+            setReprogSlots(normalizedSlots);
+            const firstDay = normalizedSlots[0]?.fecha || '';
+            setNewDate(firstDay);
+            const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
+            setNewTime(firstSlotForDay?.hora || '');
+            setReprogDay('');
+            return;
+          } catch (_e2) {
+            setReprogDays([]);
+            setReprogSlots([]);
+            setNewDate('');
+            setNewTime('');
+          }
+        }
+      }
+
+      setReprogDays([]);
+      setReprogSlots([]);
+      setNewDate('');
+      setNewTime('');
+      setReprogDay('');
+      setError('No se pudo obtener disponibilidad para reprogramar en esta planta.');
+    } finally {
+      setReprogLoading(false);
+    }
+  };
+
   const refreshById = async (id: string) => {
     if (!session) return;
     const data = await adminApi<AppointmentData>(
@@ -148,65 +233,13 @@ export default function ManageAppointmentsPage() {
       `auth/turId?id_turno=${encodeURIComponent(id)}`,
     );
     setAppointment(data);
-
-    const vehicleType = data?.datos?.vehicleType || (data as any)?.datos?.tipo_vehiculo;
-    if (vehicleType) {
-      try {
-        const quotes = await adminApi<{ dias?: string[]; turnos?: ReprogSlot[] }>(
-          session,
-          'auth/getQuotes',
-          {
-            method: 'POST',
-            body: { tipoVehiculo: vehicleType },
-          },
-        );
-        setReprogDays(quotes?.dias || []);
-        const normalizedSlots = (quotes?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
-        setReprogSlots(normalizedSlots);
-        const firstDay = (quotes?.dias || [])[0] || normalizedSlots[0]?.fecha || '';
-        setNewDate(firstDay);
-        const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
-        setNewTime(firstSlotForDay?.hora || '');
-        setReprogDay('');
-      } catch (_e1) {
-        try {
-          // fallback legacy endpoint
-          const slots = await adminApi<{ turnos: ReprogSlot[] }>(
-            session,
-            `auth/obtTurRep?tipo_vehiculo=${encodeURIComponent(vehicleType)}`,
-          );
-          setReprogDays([]);
-          const normalizedSlots = slots?.turnos || [];
-          setReprogSlots(normalizedSlots);
-          const firstDay = normalizedSlots[0]?.fecha || '';
-          setNewDate(firstDay);
-          const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
-          setNewTime(firstSlotForDay?.hora || '');
-          setReprogDay('');
-        } catch (_e2) {
-          setReprogDays([]);
-          setReprogSlots([]);
-          setNewDate('');
-          setNewTime('');
-        }
-      }
-    } else {
-      setReprogDays([]);
-      setReprogSlots([]);
-      setNewDate('');
-      setNewTime('');
-    }
   };
 
   const findById = async () => {
     if (!session || !searchId.trim()) return;
     try {
       clearMessages();
-      const data = await adminApi<AppointmentData>(
-        session,
-        `auth/turId?id_turno=${encodeURIComponent(searchId.trim())}`,
-      );
-      setAppointment(data);
+      await refreshById(searchId.trim());
       await loadDayAppointments(session);
     } catch (e: any) {
       setAppointment(null);
@@ -222,8 +255,10 @@ export default function ManageAppointmentsPage() {
         session,
         `auth/turDom?dominio=${encodeURIComponent(searchDomain.trim().toUpperCase())}`,
       );
-      setAppointment(data);
-      setSearchId(data.id);
+      const id = data?.id;
+      if (!id) throw new Error('No se obtuvo ID del turno para abrir el detalle');
+      setSearchId(id);
+      await refreshById(id);
       await loadDayAppointments(session);
     } catch (e: any) {
       setAppointment(null);
@@ -291,6 +326,7 @@ export default function ManageAppointmentsPage() {
       const newId = resp?.turno_id || appointment.id;
       setSearchId(newId);
       setSuccess('Turno reprogramado');
+      setReprogModalOpen(false);
       await refreshById(newId);
       await loadDayAppointments(session);
     } catch (e: any) {
@@ -321,6 +357,7 @@ export default function ManageAppointmentsPage() {
       const updatedId = resp?.turno_id || slot.id || appointment.id;
       setSearchId(updatedId);
       setSuccess('Turno reprogramado por disponibilidad');
+      setReprogModalOpen(false);
       await refreshById(updatedId);
       await loadDayAppointments(session);
     } catch (e: any) {
@@ -446,6 +483,57 @@ export default function ManageAppointmentsPage() {
 
               <div>
                 <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
+                <button
+                  className="admin-btn admin-btn-secondary"
+                  onClick={async () => {
+                    if (!appointment?.id) return;
+                    clearMessages();
+                    setReprogModalOpen(true);
+                    await loadRescheduleAvailability(
+                      appointment.id,
+                      appointment?.datos?.vehicleType || (appointment as any)?.datos?.tipo_vehiculo,
+                    );
+                  }}
+                >
+                  Abrir disponibilidad y reprogramar
+                </button>
+              </div>
+            </section>
+          ) : null}
+        </>
+      ) : null}
+
+      {reprogModalOpen ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 60,
+            padding: 16,
+          }}
+          onClick={() => setReprogModalOpen(false)}
+        >
+          <section
+            className="admin-card"
+            style={{ width: 'min(980px, 100%)', maxHeight: '90vh', overflow: 'auto', marginBottom: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <h3 className="admin-card-title" style={{ margin: 0 }}>
+                Reprogramar turno por disponibilidad
+              </h3>
+              <button className="admin-btn admin-btn-secondary" onClick={() => setReprogModalOpen(false)}>
+                Cerrar
+              </button>
+            </div>
+
+            {reprogLoading ? (
+              <p style={{ margin: 0, color: '#5f6d8f' }}>Consultando disponibilidad de la planta...</p>
+            ) : reprogSlots.length ? (
+              <>
                 <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
                   <select
                     className="admin-select"
@@ -472,54 +560,48 @@ export default function ManageAppointmentsPage() {
                       </option>
                     ))}
                   </select>
-                  <input
-                    className="admin-input"
-                    value={selectedManualSlot?.lineId ? String(selectedManualSlot.lineId) : '-'}
-                    readOnly
-                  />
+                  <input className="admin-input" value={selectedManualSlot?.lineId ? String(selectedManualSlot.lineId) : '-'} readOnly />
                   <button className="admin-btn admin-btn-primary" onClick={doReschedule} disabled={!newDate || !newTime || !selectedManualSlot}>
                     Reprogramar
                   </button>
                 </div>
-                <p style={{ margin: '6px 0 0', color: '#5f6d8f', fontSize: 13 }}>
+
+                <div style={{ marginTop: 10 }}>
+                  <label>
+                    Día:
+                    <select className="admin-select" value={reprogDay} onChange={(e) => setReprogDay(e.target.value)}>
+                      <option value="">Seleccionar</option>
+                      {availableReprogDays.map((day) => (
+                        <option key={day} value={day}>
+                          {day}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="admin-actions" style={{ marginTop: 8 }}>
+                    {reprogSlotsByDay.map((slot) => (
+                      <button
+                        key={`${slot.id || slot.lineId || 'slot'}-${slot.fecha}-${slot.hora}`}
+                        className="admin-btn admin-btn-secondary"
+                        onClick={() => doRescheduleBySlot(slot)}
+                      >
+                        {slot.hora?.slice(0, 5) || slot.hora}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <p style={{ margin: '10px 0 0', color: '#5f6d8f', fontSize: 13 }}>
                   Solo se muestran días y horarios disponibles según la configuración de la planta.
                 </p>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <h4 style={{ marginBottom: 6 }}>Reprogramar por disponibilidad (igual al front público)</h4>
-                {reprogSlots.length ? (
-                  <>
-                    <label>
-                      Día:
-                      <select className="admin-select" value={reprogDay} onChange={(e) => setReprogDay(e.target.value)}>
-                        <option value="">Seleccionar</option>
-                        {availableReprogDays.map((day) => (
-                          <option key={day} value={day}>
-                            {day}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <div className="admin-actions" style={{ marginTop: 8 }}>
-                      {reprogSlotsByDay.map((slot) => (
-                        <button
-                          key={`${slot.id || slot.lineId || 'slot'}-${slot.fecha}-${slot.hora}`}
-                          className="admin-btn admin-btn-secondary"
-                          onClick={() => doRescheduleBySlot(slot)}
-                        >
-                          {slot.hora?.slice(0, 5) || slot.hora}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <p style={{ margin: 0, color: '#5f6d8f' }}>No hay disponibilidad cargada para este tipo de vehículo.</p>
-                )}
-              </div>
-            </section>
-          ) : null}
-        </>
+              </>
+            ) : (
+              <p style={{ margin: 0, color: '#5f6d8f' }}>
+                No hay disponibilidad para reprogramar este turno en este momento.
+              </p>
+            )}
+          </section>
+        </div>
       ) : null}
     </main>
   );
