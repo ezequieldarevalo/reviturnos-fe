@@ -75,6 +75,19 @@ const normalizeHour = (value: unknown): string => {
 const normalizeReprogSlots = (rawSlots: any[]): ReprogSlot[] => {
   return (rawSlots || [])
     .map((slot: any) => {
+      const hourCandidates = [
+        slot?.fecha_hora,
+        slot?.datetime,
+        slot?.fechaHora,
+        slot?.hora_turno,
+        slot?.time,
+        slot?.horario,
+        slot?.hora,
+        slot?.fecha,
+        slot?.date,
+        slot?.dia,
+      ];
+
       const fecha = normalizeDay(
         slot?.fecha ||
           slot?.dia ||
@@ -84,14 +97,10 @@ const normalizeReprogSlots = (rawSlots: any[]): ReprogSlot[] => {
           slot?.datetime ||
           slot?.fechaHora,
       );
-      const horaRaw = String(
-        slot?.hora ||
-          slot?.horario ||
-          slot?.time ||
-          slot?.hora_turno ||
-          slot?.fecha_hora ||
-          '',
-      ).trim();
+      const horaRaw =
+        hourCandidates
+          .map((candidate) => String(candidate || '').trim())
+          .find((candidate) => !!normalizeHour(candidate)) || '';
       const hora = normalizeHour(horaRaw);
 
       const idValue = slot?.id || slot?.id_turno || slot?.turno_id || '';
@@ -105,7 +114,29 @@ const normalizeReprogSlots = (rawSlots: any[]): ReprogSlot[] => {
         lineId: lineValue !== null && lineValue !== undefined ? String(lineValue) : null,
       } as ReprogSlot;
     })
-    .filter((slot) => !!slot.fecha && !!slot.hora);
+    .filter((slot) => !!slot.fecha && !!slot.hora)
+    .filter((slot) => /^\d{2}:\d{2}$/.test(slot.hora));
+};
+
+const formatDayKey = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseDayKey = (day: string): Date | null => {
+  const normalized = normalizeDay(day);
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const monthKeyFromDay = (day: string): string => {
+  const normalized = normalizeDay(day);
+  return normalized ? `${normalized.slice(0, 7)}-01` : '';
 };
 
 type DayAppointment = {
@@ -137,6 +168,7 @@ export default function ManageAppointmentsPage() {
   const [reprogDays, setReprogDays] = useState<string[]>([]);
   const [reprogLoading, setReprogLoading] = useState(false);
   const [reprogModalOpen, setReprogModalOpen] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState('efectivo');
   const [paymentRef, setPaymentRef] = useState('');
@@ -189,20 +221,49 @@ export default function ManageAppointmentsPage() {
       max: days[days.length - 1] || '',
     };
   }, [availableReprogDays]);
-  const availableDaysByMonth = useMemo(() => {
-    const grouped = new Map<string, string[]>();
-    for (const day of availableReprogDays.map((d) => normalizeDay(d)).filter(Boolean).sort()) {
-      const monthKey = day.slice(0, 7);
-      const current = grouped.get(monthKey) || [];
-      current.push(day);
-      grouped.set(monthKey, current);
+  const calendarBaseDate = useMemo(() => {
+    const fallback = availableDayBounds.min || normalizeDay(newDate) || '';
+    const key = calendarMonth || monthKeyFromDay(fallback);
+    return parseDayKey(key) || parseDayKey(monthKeyFromDay(availableDayBounds.min || '')) || new Date();
+  }, [calendarMonth, availableDayBounds.min, newDate]);
+  const calendarTitle = useMemo(
+    () =>
+      new Intl.DateTimeFormat('es-AR', {
+        month: 'long',
+        year: 'numeric',
+      }).format(calendarBaseDate),
+    [calendarBaseDate],
+  );
+  const calendarDays = useMemo(() => {
+    const monthStart = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
+    const mondayIndex = (monthStart.getDay() + 6) % 7;
+    const firstVisible = new Date(monthStart);
+    firstVisible.setDate(monthStart.getDate() - mondayIndex);
+
+    const cells: Array<{ key: string; day: number; inMonth: boolean; enabled: boolean }> = [];
+    for (let i = 0; i < 42; i += 1) {
+      const date = new Date(firstVisible);
+      date.setDate(firstVisible.getDate() + i);
+      const key = formatDayKey(date);
+      cells.push({
+        key,
+        day: date.getDate(),
+        inMonth: date.getMonth() === calendarBaseDate.getMonth(),
+        enabled: availableDaySet.has(key),
+      });
     }
-    return Array.from(grouped.entries());
-  }, [availableReprogDays]);
+    return cells;
+  }, [calendarBaseDate, availableDaySet]);
   const selectedManualSlot = useMemo(
     () => manualSlotsByDate.find((slot) => slot.hora === newTime) || null,
     [manualSlotsByDate, newTime],
   );
+
+  useEffect(() => {
+    if (!reprogModalOpen) return;
+    if (!availableReprogDays.length) return;
+    setCalendarMonth((prev) => prev || monthKeyFromDay(availableReprogDays[0]));
+  }, [reprogModalOpen, availableReprogDays]);
 
   const loadDayAppointments = async (currentSession: AdminSession) => {
     const resp = await adminApi<{ turnosDia: DayAppointment[] }>(currentSession, 'auth/turDiaAct');
@@ -602,6 +663,7 @@ export default function ManageAppointmentsPage() {
                     if (!appointment?.id) return;
                     clearMessages();
                     setReprogModalOpen(true);
+                    setCalendarMonth('');
                     await loadRescheduleAvailability(
                       appointment.id,
                       appointment?.datos?.vehicleType || (appointment as any)?.datos?.tipo_vehiculo,
@@ -647,51 +709,69 @@ export default function ManageAppointmentsPage() {
               <p style={{ margin: 0, color: '#5f6d8f' }}>Consultando disponibilidad de la planta...</p>
             ) : reprogSlots.length ? (
               <>
-                <div style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 13, color: '#5f6d8f', marginBottom: 6 }}>Seleccioná un día</div>
+                <div style={{ marginBottom: 12, border: '1px solid #d7def4', borderRadius: 10, padding: 10, background: '#f8faff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary"
+                      onClick={() => {
+                        const prev = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
+                        setCalendarMonth(formatDayKey(prev));
+                      }}
+                    >
+                      ◀
+                    </button>
+                    <div style={{ fontWeight: 700, textTransform: 'capitalize' }}>{calendarTitle}</div>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-secondary"
+                      onClick={() => {
+                        const next = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
+                        setCalendarMonth(formatDayKey(next));
+                      }}
+                    >
+                      ▶
+                    </button>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 6, fontSize: 12, color: '#6072a8' }}>
+                    {['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'].map((w) => (
+                      <div key={w} style={{ textAlign: 'center', fontWeight: 700 }}>{w}</div>
+                    ))}
+                  </div>
+
                   <div
                     style={{
-                      maxHeight: 180,
-                      overflowY: 'auto',
-                      border: '1px solid #d7def4',
-                      borderRadius: 10,
-                      padding: 10,
-                      background: '#f8faff',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(7, 1fr)',
+                      gap: 6,
                     }}
                   >
-                    {availableDaysByMonth.map(([month, days]) => (
-                      <div key={month} style={{ marginBottom: 10 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#344a8a', marginBottom: 6 }}>
-                          {month}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                          {days.map((day) => {
-                            const selected = normalizeDay(newDate) === day;
-                            return (
-                              <button
-                                key={day}
-                                type="button"
-                                className={`admin-btn ${selected ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
-                                style={{ minWidth: 106 }}
-                                onClick={() => {
-                                  if (!availableDaySet.has(day)) {
-                                    setError('Ese día no tiene disponibilidad para esta planta.');
-                                    setNewDate('');
-                                    setNewTime('');
-                                    return;
-                                  }
-                                  setError('');
-                                  setNewDate(day);
-                                  setNewTime('');
-                                }}
-                              >
-                                {day}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
+                    {calendarDays.map((cell) => {
+                      const selected = normalizeDay(newDate) === cell.key;
+                      return (
+                        <button
+                          key={cell.key}
+                          type="button"
+                          disabled={!cell.enabled}
+                          className={`admin-btn ${selected ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
+                          style={{
+                            minWidth: 0,
+                            width: '100%',
+                            opacity: cell.enabled ? 1 : 0.45,
+                            borderStyle: cell.inMonth ? 'solid' : 'dashed',
+                          }}
+                          onClick={() => {
+                            if (!cell.enabled) return;
+                            setError('');
+                            setNewDate(cell.key);
+                            setNewTime('');
+                          }}
+                        >
+                          {cell.day}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
