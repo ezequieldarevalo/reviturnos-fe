@@ -7,20 +7,38 @@ import { AdminSession, getAdminSession } from 'lib/adminAuth';
 
 type AppointmentData = {
   id: string;
-  appointmentDate: string;
-  appointmentTime: string;
-  status: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
+  fecha?: string;
+  hora?: string;
+  status?: string;
+  estado?: string;
   datos?: {
+    nombre?: string;
     customerName?: string;
+    email?: string;
     customerEmail?: string;
+    telefono?: string;
+    customerPhone?: string;
+    dominio?: string;
     vehicleDomain?: string;
+    tipo_vehiculo?: string;
     vehicleType?: string;
+    marca?: string;
+    modelo?: string;
+    anio?: number | string;
+    combustible?: string;
     price?: number;
   };
   cobro?: {
+    fecha?: string;
     method?: string;
+    metodo?: string;
     amount?: number;
+    monto?: number;
     reference?: string;
+    nro_op?: string;
+    status?: string;
   };
 };
 
@@ -303,6 +321,82 @@ export default function ManageAppointmentsPage() {
     setSuccess('');
   };
 
+  const toDateLabel = (value?: string) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('es-AR');
+    const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    return value;
+  };
+
+  const toHourLabel = (value?: string) => {
+    if (!value) return '--:--';
+    const hourMatch = value.match(/^(\d{2}:\d{2})/);
+    if (hourMatch) return hourMatch[1];
+    return value;
+  };
+
+  const toDateTimeLabel = (value?: string) => {
+    if (!value) return '-';
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return `${parsed.toLocaleDateString('es-AR')} ${parsed.toLocaleTimeString('es-AR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    }
+    return value;
+  };
+
+  const estadoLabel = (estado?: string) => {
+    if (!estado) return '-';
+    if (estado === 'C') return 'Confirmado';
+    if (estado === 'P') return 'Pago';
+    if (estado === 'A') return 'Resultado - Apto';
+    if (estado === 'K') return 'Resultado - Condicional';
+    if (estado === 'F') return 'Resultado - Rechazado';
+    if (estado === 'T') return 'Realizado';
+    return estado;
+  };
+
+  const pagoMetodoLabel = (metodo?: string) => {
+    if (!metodo) return '-';
+    const key = metodo.toLowerCase();
+    const map: Record<string, string> = {
+      credit_card: 'Tarjeta de crédito',
+      debit_card: 'Tarjeta de débito',
+      prepaid_card: 'Tarjeta prepaga',
+      account_money: 'Dinero en cuenta',
+      bank_transfer: 'Transferencia bancaria',
+      ticket: 'Pago en efectivo',
+      atm: 'Cajero automático',
+      digital_currency: 'Moneda digital',
+      wallet_purchase: 'Billetera digital',
+      mercadopago: 'Mercado Pago',
+      transferencia: 'Transferencia',
+      efectivo: 'Efectivo',
+    };
+    return map[key] || metodo.replace(/_/g, ' ');
+  };
+
+  const pagoEstadoLabel = (estado?: string) => {
+    if (!estado) return '-';
+    const key = estado.toLowerCase();
+    const map: Record<string, string> = {
+      approved: 'Aprobado',
+      pending: 'Pendiente',
+      authorized: 'Autorizado',
+      in_process: 'En proceso',
+      in_mediation: 'En mediación',
+      rejected: 'Rechazado',
+      cancelled: 'Cancelado',
+      refunded: 'Reintegrado',
+      charged_back: 'Contracargo',
+    };
+    return map[key] || estado.replace(/_/g, ' ');
+  };
+
   const updateManageQuery = (id?: string, domain?: string) => {
     const qs = new URLSearchParams(searchParams?.toString() || '');
     if (id) qs.set('id', id);
@@ -394,7 +488,25 @@ export default function ManageAppointmentsPage() {
       session,
       `auth/turId?id_turno=${encodeURIComponent(id)}`,
     );
-    setAppointment(data);
+
+    try {
+      const detail = await adminApi<AppointmentData>(session, 'auth/tur', {
+        method: 'POST',
+        body: { id_turno: id },
+      });
+
+      setAppointment({
+        ...data,
+        ...detail,
+        datos: {
+          ...(data?.datos || {}),
+          ...(detail?.datos || {}),
+        },
+        cobro: detail?.cobro || data?.cobro,
+      });
+    } catch (_e) {
+      setAppointment(data);
+    }
   };
 
   const findById = async () => {
@@ -608,19 +720,32 @@ export default function ManageAppointmentsPage() {
         <>
           <section className="admin-card">
             <h3 className="admin-card-title">Turno encontrado</h3>
-            <p>
-              <b>ID:</b> {appointment?.id}
-              <br />
-              <b>Fecha/Hora:</b> {appointment?.appointmentDate} {appointment?.appointmentTime}
-              <br />
-              <b>Estado:</b> {appointment?.status}
-              <br />
-              <b>Cliente:</b> {appointment?.datos?.customerName || '-'}
-              <br />
-              <b>Dominio:</b> {(appointment?.datos?.vehicleDomain || '-').toUpperCase()}
-              <br />
-              <b>Vehículo:</b> {appointment?.datos?.vehicleType || '-'}
-            </p>
+            <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+              <section>
+                <p><b>ID:</b> {appointment?.id}</p>
+                <p><b>Fecha:</b> {toDateLabel(appointment?.fecha || appointment?.appointmentDate)}</p>
+                <p><b>Hora:</b> {toHourLabel(appointment?.hora || appointment?.appointmentTime)}</p>
+                <p><b>Estado:</b> {estadoLabel(appointment?.estado || appointment?.status)}</p>
+              </section>
+
+              <section>
+                <p><b>Nombre:</b> {appointment?.datos?.customerName || appointment?.datos?.nombre || '-'}</p>
+                <p><b>Email:</b> {appointment?.datos?.customerEmail || appointment?.datos?.email || '-'}</p>
+                <p><b>Tel:</b> {appointment?.datos?.customerPhone || appointment?.datos?.telefono || '-'}</p>
+                <p><b>Dominio:</b> {(appointment?.datos?.vehicleDomain || appointment?.datos?.dominio || '-').toUpperCase()}</p>
+                <p><b>Vehículo:</b> {appointment?.datos?.vehicleType || appointment?.datos?.tipo_vehiculo || '-'}</p>
+                <p><b>Marca/Modelo:</b> {appointment?.datos?.marca || '-'} / {appointment?.datos?.modelo || '-'}</p>
+                <p><b>Año / Comb:</b> {appointment?.datos?.anio || '-'} / {appointment?.datos?.combustible || '-'}</p>
+              </section>
+
+              <section>
+                <p><b>Monto:</b> ${Number(appointment?.cobro?.amount ?? appointment?.cobro?.monto ?? 0).toLocaleString('es-AR')}</p>
+                <p><b>Método:</b> {pagoMetodoLabel(appointment?.cobro?.method || appointment?.cobro?.metodo)}</p>
+                <p><b>Referencia:</b> {appointment?.cobro?.reference || appointment?.cobro?.nro_op || '-'}</p>
+                <p><b>Estado pago:</b> {pagoEstadoLabel(appointment?.cobro?.status)}</p>
+                <p><b>Fecha pago:</b> {toDateTimeLabel(appointment?.cobro?.fecha)}</p>
+              </section>
+            </div>
           </section>
 
           {canMutate ? (
