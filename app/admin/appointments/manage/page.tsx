@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { adminApi } from 'lib/adminApi';
 import { AdminSession, getAdminSession } from 'lib/adminAuth';
 
@@ -44,6 +44,7 @@ type DayAppointment = {
 
 export default function ManageAppointmentsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<AdminSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -57,7 +58,6 @@ export default function ManageAppointmentsPage() {
   const [newTime, setNewTime] = useState('');
   const [reprogSlots, setReprogSlots] = useState<ReprogSlot[]>([]);
   const [reprogDays, setReprogDays] = useState<string[]>([]);
-  const [reprogDay, setReprogDay] = useState('');
   const [reprogLoading, setReprogLoading] = useState(false);
   const [reprogModalOpen, setReprogModalOpen] = useState(false);
 
@@ -87,10 +87,6 @@ export default function ManageAppointmentsPage() {
   const availableReprogDays = useMemo(
     () => (reprogDays.length ? reprogDays : Array.from(new Set(reprogSlots.map((slot) => slot.fecha))).sort()),
     [reprogSlots, reprogDays],
-  );
-  const reprogSlotsByDay = useMemo(
-    () => reprogSlots.filter((slot) => !reprogDay || slot.fecha === reprogDay),
-    [reprogSlots, reprogDay],
   );
   const manualSlotsByDate = useMemo(
     () => reprogSlots.filter((slot) => slot.fecha === newDate),
@@ -143,6 +139,18 @@ export default function ManageAppointmentsPage() {
     setSuccess('');
   };
 
+  const updateManageQuery = (id?: string, domain?: string) => {
+    const qs = new URLSearchParams(searchParams?.toString() || '');
+    if (id) qs.set('id', id);
+    else qs.delete('id');
+
+    if (domain) qs.set('domain', domain);
+    else qs.delete('domain');
+
+    const query = qs.toString();
+    router.replace(`/admin/appointments/manage${query ? `?${query}` : ''}`);
+  };
+
   const loadRescheduleAvailability = async (turnoId: string, vehicleType?: string) => {
     if (!session) return;
 
@@ -160,11 +168,8 @@ export default function ManageAppointmentsPage() {
         const normalizedSlots = (quotesForResc?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
         setReprogDays(quotesForResc?.dias || []);
         setReprogSlots(normalizedSlots);
-        const firstDay = (quotesForResc?.dias || [])[0] || normalizedSlots[0]?.fecha || '';
-        setNewDate(firstDay);
-        const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
-        setNewTime(firstSlotForDay?.hora || '');
-        setReprogDay('');
+        setNewDate('');
+        setNewTime('');
         return;
       } catch (_e0) {
         // fallback below
@@ -185,11 +190,8 @@ export default function ManageAppointmentsPage() {
           setReprogDays(quotes?.dias || []);
           const normalizedSlots = (quotes?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha);
           setReprogSlots(normalizedSlots);
-          const firstDay = (quotes?.dias || [])[0] || normalizedSlots[0]?.fecha || '';
-          setNewDate(firstDay);
-          const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
-          setNewTime(firstSlotForDay?.hora || '');
-          setReprogDay('');
+          setNewDate('');
+          setNewTime('');
           return;
         } catch (_e1) {
           try {
@@ -200,11 +202,8 @@ export default function ManageAppointmentsPage() {
             const normalizedSlots = slots?.turnos || [];
             setReprogDays([]);
             setReprogSlots(normalizedSlots);
-            const firstDay = normalizedSlots[0]?.fecha || '';
-            setNewDate(firstDay);
-            const firstSlotForDay = normalizedSlots.find((slot) => slot.fecha === firstDay);
-            setNewTime(firstSlotForDay?.hora || '');
-            setReprogDay('');
+            setNewDate('');
+            setNewTime('');
             return;
           } catch (_e2) {
             setReprogDays([]);
@@ -219,7 +218,6 @@ export default function ManageAppointmentsPage() {
       setReprogSlots([]);
       setNewDate('');
       setNewTime('');
-      setReprogDay('');
       setError('No se pudo obtener disponibilidad para reprogramar en esta planta.');
     } finally {
       setReprogLoading(false);
@@ -239,7 +237,9 @@ export default function ManageAppointmentsPage() {
     if (!session || !searchId.trim()) return;
     try {
       clearMessages();
-      await refreshById(searchId.trim());
+      const id = searchId.trim();
+      await refreshById(id);
+      updateManageQuery(id, undefined);
       await loadDayAppointments(session);
     } catch (e: any) {
       setAppointment(null);
@@ -258,7 +258,9 @@ export default function ManageAppointmentsPage() {
       const id = data?.id;
       if (!id) throw new Error('No se obtuvo ID del turno para abrir el detalle');
       setSearchId(id);
+      setSearchDomain(searchDomain.trim().toUpperCase());
       await refreshById(id);
+      updateManageQuery(id, searchDomain.trim().toUpperCase());
       await loadDayAppointments(session);
     } catch (e: any) {
       setAppointment(null);
@@ -327,6 +329,7 @@ export default function ManageAppointmentsPage() {
       setSearchId(newId);
       setSuccess('Turno reprogramado');
       setReprogModalOpen(false);
+      updateManageQuery(newId, undefined);
       await refreshById(newId);
       await loadDayAppointments(session);
     } catch (e: any) {
@@ -334,36 +337,42 @@ export default function ManageAppointmentsPage() {
     }
   };
 
-  const doRescheduleBySlot = async (slot: ReprogSlot) => {
-    if (!session || !appointment?.id) return;
-    try {
-      clearMessages();
-      const payload = slot?.id
-        ? {
-            id_turno_ant: appointment.id,
-            id_turno_nuevo: slot.id,
-          }
-        : {
-            turno_id: appointment.id,
-            nueva_fecha: slot.fecha,
-            nueva_hora: slot.hora,
-            nueva_linea: slot.lineId ? Number(slot.lineId) : undefined,
-          };
+  useEffect(() => {
+    if (!session) return;
 
-      const resp = await adminApi<{ turno_id?: string }>(session, 'auth/repTur', {
-        method: 'POST',
-        body: payload,
-      });
-      const updatedId = resp?.turno_id || slot.id || appointment.id;
-      setSearchId(updatedId);
-      setSuccess('Turno reprogramado por disponibilidad');
-      setReprogModalOpen(false);
-      await refreshById(updatedId);
-      await loadDayAppointments(session);
-    } catch (e: any) {
-      setError(e?.message || 'No se pudo reprogramar por disponibilidad');
-    }
-  };
+    const idParam = searchParams?.get('id')?.trim() || '';
+    const domainParam = searchParams?.get('domain')?.trim() || '';
+    if (!idParam && !domainParam) return;
+
+    const restore = async () => {
+      try {
+        if (idParam) {
+          if (appointment?.id !== idParam) {
+            setSearchId(idParam);
+            await refreshById(idParam);
+          }
+          return;
+        }
+
+        if (domainParam) {
+          const data = await adminApi<AppointmentData>(
+            session,
+            `auth/turDom?dominio=${encodeURIComponent(domainParam.toUpperCase())}`,
+          );
+          if (data?.id && appointment?.id !== data.id) {
+            setSearchDomain(domainParam.toUpperCase());
+            setSearchId(data.id);
+            await refreshById(data.id);
+          }
+        }
+      } catch (_e) {
+        // ignore restore failures
+      }
+    };
+
+    restore();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, searchParams]);
 
   if (loading) return <main className="admin-loading">Cargando...</main>;
 
@@ -399,6 +408,7 @@ export default function ManageAppointmentsPage() {
                 onClick={async () => {
                   setSearchId(row.id);
                   setSearchDomain('');
+                  updateManageQuery(row.id, undefined);
                   await refreshById(row.id);
                 }}
               >
@@ -541,8 +551,7 @@ export default function ManageAppointmentsPage() {
                     onChange={(e) => {
                       const day = e.target.value;
                       setNewDate(day);
-                      const firstForDay = reprogSlots.find((slot) => slot.fecha === day);
-                      setNewTime(firstForDay?.hora || '');
+                      setNewTime('');
                     }}
                   >
                     <option value="">Seleccionar día</option>
@@ -553,7 +562,7 @@ export default function ManageAppointmentsPage() {
                     ))}
                   </select>
                   <select className="admin-select" value={newTime} onChange={(e) => setNewTime(e.target.value)}>
-                    <option value="">Seleccionar horario</option>
+                    <option value="">{newDate ? 'Seleccionar horario' : 'Primero seleccioná un día'}</option>
                     {manualSlotTimes.map((time) => (
                       <option key={time} value={time}>
                         {time?.slice(0, 5) || time}
@@ -566,33 +575,8 @@ export default function ManageAppointmentsPage() {
                   </button>
                 </div>
 
-                <div style={{ marginTop: 10 }}>
-                  <label>
-                    Día:
-                    <select className="admin-select" value={reprogDay} onChange={(e) => setReprogDay(e.target.value)}>
-                      <option value="">Seleccionar</option>
-                      {availableReprogDays.map((day) => (
-                        <option key={day} value={day}>
-                          {day}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="admin-actions" style={{ marginTop: 8 }}>
-                    {reprogSlotsByDay.map((slot) => (
-                      <button
-                        key={`${slot.id || slot.lineId || 'slot'}-${slot.fecha}-${slot.hora}`}
-                        className="admin-btn admin-btn-secondary"
-                        onClick={() => doRescheduleBySlot(slot)}
-                      >
-                        {slot.hora?.slice(0, 5) || slot.hora}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <p style={{ margin: '10px 0 0', color: '#5f6d8f', fontSize: 13 }}>
-                  Solo se muestran días y horarios disponibles según la configuración de la planta.
+                  Primero seleccioná día, luego horario disponible. Al confirmar se recarga el detalle del turno actual.
                 </p>
               </>
             ) : (
