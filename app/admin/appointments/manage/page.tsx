@@ -28,6 +28,7 @@ type ReprogSlot = {
   id: string;
   fecha: string;
   hora: string;
+  lineId?: string | null;
 };
 
 type DayAppointment = {
@@ -56,6 +57,7 @@ export default function ManageAppointmentsPage() {
   const [newTime, setNewTime] = useState('');
   const [newLine, setNewLine] = useState('');
   const [reprogSlots, setReprogSlots] = useState<ReprogSlot[]>([]);
+  const [reprogDays, setReprogDays] = useState<string[]>([]);
   const [reprogDay, setReprogDay] = useState('');
 
   const [paymentMethod, setPaymentMethod] = useState('efectivo');
@@ -82,8 +84,8 @@ export default function ManageAppointmentsPage() {
     [dayAppointments, statusFilter],
   );
   const availableReprogDays = useMemo(
-    () => Array.from(new Set(reprogSlots.map((slot) => slot.fecha))).sort(),
-    [reprogSlots],
+    () => (reprogDays.length ? reprogDays : Array.from(new Set(reprogSlots.map((slot) => slot.fecha))).sort()),
+    [reprogSlots, reprogDays],
   );
   const reprogSlotsByDay = useMemo(
     () => reprogSlots.filter((slot) => !reprogDay || slot.fecha === reprogDay),
@@ -136,19 +138,37 @@ export default function ManageAppointmentsPage() {
     );
     setAppointment(data);
 
-    const vehicleType = data?.datos?.vehicleType;
+    const vehicleType = data?.datos?.vehicleType || (data as any)?.datos?.tipo_vehiculo;
     if (vehicleType) {
       try {
-        const slots = await adminApi<{ turnos: ReprogSlot[] }>(
+        const quotes = await adminApi<{ dias?: string[]; turnos?: ReprogSlot[] }>(
           session,
-          `auth/obtTurRep?tipo_vehiculo=${encodeURIComponent(vehicleType)}`,
+          'auth/getQuotes',
+          {
+            method: 'POST',
+            body: { tipoVehiculo: vehicleType },
+          },
         );
-        setReprogSlots(slots?.turnos || []);
+        setReprogDays(quotes?.dias || []);
+        setReprogSlots((quotes?.turnos || []).filter((s) => !!s?.hora && !!s?.fecha));
         setReprogDay('');
-      } catch (_e) {
-        setReprogSlots([]);
+      } catch (_e1) {
+        try {
+          // fallback legacy endpoint
+          const slots = await adminApi<{ turnos: ReprogSlot[] }>(
+            session,
+            `auth/obtTurRep?tipo_vehiculo=${encodeURIComponent(vehicleType)}`,
+          );
+          setReprogDays([]);
+          setReprogSlots(slots?.turnos || []);
+          setReprogDay('');
+        } catch (_e2) {
+          setReprogDays([]);
+          setReprogSlots([]);
+        }
       }
     } else {
+      setReprogDays([]);
       setReprogSlots([]);
     }
   };
@@ -246,18 +266,27 @@ export default function ManageAppointmentsPage() {
     }
   };
 
-  const doRescheduleBySlot = async (newTurnoId: string) => {
-    if (!session || !appointment?.id || !newTurnoId) return;
+  const doRescheduleBySlot = async (slot: ReprogSlot) => {
+    if (!session || !appointment?.id) return;
     try {
       clearMessages();
+      const payload = slot?.id
+        ? {
+            id_turno_ant: appointment.id,
+            id_turno_nuevo: slot.id,
+          }
+        : {
+            turno_id: appointment.id,
+            nueva_fecha: slot.fecha,
+            nueva_hora: slot.hora,
+            nueva_linea: slot.lineId ? Number(slot.lineId) : undefined,
+          };
+
       const resp = await adminApi<{ turno_id?: string }>(session, 'auth/repTur', {
         method: 'POST',
-        body: {
-          id_turno_ant: appointment.id,
-          id_turno_nuevo: newTurnoId,
-        },
+        body: payload,
       });
-      const updatedId = resp?.turno_id || newTurnoId;
+      const updatedId = resp?.turno_id || slot.id || appointment.id;
       setSearchId(updatedId);
       setSuccess('Turno reprogramado por disponibilidad');
       await refreshById(updatedId);
@@ -268,6 +297,8 @@ export default function ManageAppointmentsPage() {
   };
 
   if (loading) return <main className="admin-loading">Cargando...</main>;
+
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   return (
     <main className="admin-page">
@@ -386,7 +417,7 @@ export default function ManageAppointmentsPage() {
               <div>
                 <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
                 <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
-                  <input className="admin-input" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                  <input className="admin-input" min={todayIso} type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
                   <input className="admin-input" type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
                   <input
                     className="admin-input"
@@ -401,7 +432,7 @@ export default function ManageAppointmentsPage() {
               </div>
 
               <div style={{ marginTop: 12 }}>
-                <h4 style={{ marginBottom: 6 }}>Reprogramar por disponibilidad (legacy)</h4>
+                <h4 style={{ marginBottom: 6 }}>Reprogramar por disponibilidad (igual al front público)</h4>
                 {reprogSlots.length ? (
                   <>
                     <label>
@@ -418,9 +449,9 @@ export default function ManageAppointmentsPage() {
                     <div className="admin-actions" style={{ marginTop: 8 }}>
                       {reprogSlotsByDay.map((slot) => (
                         <button
-                          key={slot.id}
+                          key={`${slot.id || slot.lineId || 'slot'}-${slot.fecha}-${slot.hora}`}
                           className="admin-btn admin-btn-secondary"
-                          onClick={() => doRescheduleBySlot(slot.id)}
+                          onClick={() => doRescheduleBySlot(slot)}
                         >
                           {slot.hora?.slice(0, 5) || slot.hora}
                         </button>
