@@ -1,5 +1,6 @@
 'use client';
 
+import { use } from 'react';
 import HeaderGodoyCruz from 'components/layout/structure/HeaderGodoycruz';
 import HeaderRevitotal from 'components/layout/structure/HeaderRevitotal';
 import HeaderRivadavia from 'components/layout/structure/HeaderRivadavia';
@@ -17,7 +18,8 @@ const HEADERS: Record<string, JSX.Element> = {
 };
 
 export default function PlantPage({ params }: any) {
-  const plantName = params.plantId;
+  const resolvedParams = use(params) as { plantId: string };
+  const plantName = resolvedParams.plantId;
   const validPlant = PLANTS.some((plant) => plant.id === plantName);
 
   return (

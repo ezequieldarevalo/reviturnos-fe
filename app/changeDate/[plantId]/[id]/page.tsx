@@ -1,5 +1,6 @@
 'use client';
 
+import { use } from 'react';
 import HeaderGodoyCruz from 'components/layout/structure/HeaderGodoycruz';
 import HeaderRevitotal from 'components/layout/structure/HeaderRevitotal';
 import HeaderRivadavia from 'components/layout/structure/HeaderRivadavia';
@@ -19,8 +20,9 @@ const HEADERS: Record<string, JSX.Element> = {
 export default function ChangeDatePage({
   params,
 }: any) {
-  const plantName = params.plantId;
-  const quoteId = params.id;
+  const resolvedParams = use(params) as { plantId: string; id: string };
+  const plantName = resolvedParams.plantId;
+  const quoteId = resolvedParams.id;
   const validPlant = PLANTS.some((plant) => plant.id === plantName);
 
   return (

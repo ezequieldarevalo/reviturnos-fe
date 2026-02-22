@@ -1,5 +1,6 @@
 'use client';
 
+import { use } from 'react';
 import Message from 'components/layout/Message';
 import HeaderGodoyCruz from 'components/layout/structure/HeaderGodoycruz';
 import HeaderRevitotal from 'components/layout/structure/HeaderRevitotal';
@@ -15,7 +16,8 @@ const renderHeader = (plantName: string) => {
 };
 
 export default function ConfirmedPage({ params }: any) {
-  const name = params.name;
+  const resolvedParams = use(params) as { name: string };
+  const name = resolvedParams.name;
 
   if (name !== 'maipu' && name !== 'lasheras' && name !== 'rivadavia' && name !== 'godoycruz') {
     return (

@@ -15,9 +15,10 @@ const LoadingContainer = styled.div`
 `;
 
 export interface IQuote {
-  id: string;
+  id?: string | null;
   fecha: string;
   hora: string;
+  lineId?: string | null;
 }
 
 export interface IQuoteObtaining {
@@ -101,7 +102,7 @@ export const emptySchedulingError: ISchedulingError = {
   reason: "default",
 };
 
-const emptyQuoteSelected = { id: "", fecha: "", hora: "" };
+const emptyQuoteSelected: IQuote = { id: "", fecha: "", hora: "", lineId: "" };
 
 export type QuoteObtainingContextValue = [
   {
@@ -133,7 +134,7 @@ export type QuoteObtainingContextValue = [
   {
     onSelectVehicleType: (type:string) => void;
     onModifyVehicleType: () => void;
-    onSelectDate: (id: string, fecha: string, hora: string) => void;
+    onSelectDate: (id: string, fecha: string, hora: string, lineId?: string) => void;
     onModifyDateAddressChange: () => void;
     resetShift: () => void;
     onChangePaymentPlatform: (paymentPlatform: string) => void;
@@ -177,7 +178,7 @@ export const QuoteObtainingContext = createContext<QuoteObtainingContextValue>([
   {
     onSelectVehicleType: (type: string) => null,
     onModifyVehicleType: () => null,
-    onSelectDate: (id: string, fecha: string, hora: string) => null,
+    onSelectDate: (id: string, fecha: string, hora: string, lineId?: string) => null,
     onModifyDateAddressChange: () => null,
     resetShift: () => null,
     onChangePaymentPlatform: () => null,
@@ -210,7 +211,7 @@ export default function QuoteObtainingProvider({
 
   const [dateSelected, setDateSelected] = useState<boolean>(false);
 
-  const [paymentPlatform, setPaymentPlatform] = useState<string>("mercadoPago");
+  const [paymentPlatform, setPaymentPlatform] = useState<string>("mercadopago");
 
   const [paymentPlatformSelected, setPaymentPlatformSelected] =
     useState<boolean>(false);
@@ -284,13 +285,48 @@ export default function QuoteObtainingProvider({
     return payload as T;
   };
 
+  const getFromBackend = async <T,>(plantCode: string, path: string, query?: Record<string, string>): Promise<T> => {
+    const searchParams = new URLSearchParams({ plant: plantCode });
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          searchParams.set(key, String(value));
+        }
+      });
+    }
+
+    const response = await fetch(`/api/backend/${path}?${searchParams.toString()}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    let payload: any = {};
+    try {
+      payload = await response.json();
+    } catch (_e) {
+      payload = {};
+    }
+
+    if (!response.ok) {
+      const reason = payload?.reason ||
+        (response.status === 400
+          ? 'BAD_REQUEST'
+          : response.status === 500
+            ? 'INTERNAL_ERROR_SERVER'
+            : 'UNKNOWN_ERROR');
+      throw buildError(reason, String(response.status));
+    }
+
+    return payload as T;
+  };
+
   const onSelectVehicleType = useCallback(async (type: string): Promise<FetchResult<IQuoteObtainingResponse>> => {
     setVehicleType(type);
     setVehicleTypeSelected(true);
     setLoading(true);
     setError(null);
     try {
-      const data = await postToBackend<IQuoteObtaining>(plant, 'api/auth/getQuotes', {
+      const data = await getFromBackend<IQuoteObtaining>(plant, 'api/auth/getQuotes', {
         tipoVehiculo: type,
       });
       setQuotes({ ...data, plant });
@@ -304,8 +340,8 @@ export default function QuoteObtainingProvider({
     }
   }, [plant]);
 
-  const onSelectDate = (id: string, fecha: string, hora: string): void => {
-    setQuoteSelected({ id, fecha, hora });
+  const onSelectDate = (id: string, fecha: string, hora: string, lineId?: string): void => {
+    setQuoteSelected({ id, fecha, hora, lineId: lineId || '' });
     setDateSelected(true);
   };
 
@@ -321,7 +357,7 @@ export default function QuoteObtainingProvider({
   };
 
   const resetShift = () => {
-    setQuoteSelected({ ...quoteSelected, hora: null });
+    setQuoteSelected({ ...quoteSelected, hora: '' });
   };
 
   const onChangePaymentPlatform = (paymentPlatform: string) => {
@@ -407,6 +443,18 @@ export default function QuoteObtainingProvider({
       }
 
       if (operation === 'chooseQuote') {
+        const quotePayload = quoteSelected.id
+          ? { id_turno: quoteSelected.id }
+          : {
+              fecha: (quoteSelected.fecha || '').slice(0, 10),
+              hora: quoteSelected.hora,
+              lineId: quoteSelected.lineId,
+            };
+
+        if (!quotePayload.id_turno && (!quotePayload.fecha || !quotePayload.hora || !quotePayload.lineId)) {
+          throw buildError('INEXISTENT_QUOTE', '400');
+        }
+
         const data = await postToBackend<IRescheduleResponseReschedule>(plant, 'api/auth/confQuote', {
           origen: 'T',
           email,
@@ -415,7 +463,7 @@ export default function QuoteObtainingProvider({
           telefono,
           anio,
           combustible: fuelType,
-          id_turno: quoteSelected.id,
+          ...quotePayload,
           tipo_vehiculo: quotes?.tipo_vehiculo,
           plataforma_pago: paymentPlatform || '',
         });
@@ -429,11 +477,21 @@ export default function QuoteObtainingProvider({
         return { data: { Reschedule: data } };
       }
 
-      await postToBackend<IDateChangeResponseReschedule>(plant, 'api/auth/changeDate', {
-        email,
-        id_turno_nuevo: quoteSelected.id,
-        id_turno_ant: id,
-      });
+      const changeDatePayload = quoteSelected.id
+        ? {
+            email,
+            id_turno_nuevo: quoteSelected.id,
+            id_turno_ant: id,
+          }
+        : {
+            email,
+            fecha: (quoteSelected.fecha || '').slice(0, 10),
+            hora: quoteSelected.hora,
+            lineId: quoteSelected.lineId,
+            id_turno_ant: id,
+          };
+
+      await postToBackend<IDateChangeResponseReschedule>(plant, 'api/auth/changeDate', changeDatePayload);
 
       setChangeDateDone(true);
       return { data: { Reschedule: { url_pago: '' } } };
@@ -444,7 +502,7 @@ export default function QuoteObtainingProvider({
     } finally {
       setLoading(false);
     }
-  }, [operation, plant, email, id, dominio, nombre, telefono, anio, fuelType, quoteSelected.id, quotes, paymentPlatform]);
+  }, [operation, plant, email, id, dominio, nombre, telefono, anio, fuelType, quoteSelected, quotes, paymentPlatform]);
 
   const value: QuoteObtainingContextValue = useMemo(
     () => [

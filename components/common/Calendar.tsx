@@ -114,9 +114,12 @@ const ShiftSelection = styled.select`
 function Calendar(): JSX.Element {
 
   const [{ quotes, quoteSelected }, { onSelectDate, resetShift }] = useQuoteObtaining();
+
+  const normalizeDay = (value?: string) => (value || '').slice(0, 10);
   
   const getShiftsByDay = (day: string) => {
-    return quotes.turnos.filter((record) => record.fecha + "T00:00:00" === day);
+    const normalizedDay = normalizeDay(day);
+    return quotes.turnos.filter((record) => normalizeDay(record.fecha) === normalizedDay);
   };
 
   const getShiftByHour = (hour: string): IQuote | undefined => {
@@ -124,32 +127,45 @@ function Calendar(): JSX.Element {
     return dayQuotes.find((record) => record.hora === hour);
   };
 
-  const [availableShifts, setAvailableShifts] = useState<IQuote[]>(
-    getShiftsByDay(quoteSelected.fecha || quotes.dias[0])
-  );
-  const [selectedDay, setSelectedDay] = useState<string>(
-    quoteSelected.fecha || quotes.dias[0]
-  );
-  const [selectedShift, setSelectedShift] = useState<string>(
-    quoteSelected.hora || getShiftsByDay(quotes.dias[0])[0].hora
-  );
+  const initialDay = quoteSelected.fecha || quotes.dias[0] || '';
+  const initialShifts = getShiftsByDay(initialDay);
+  const initialShift = quoteSelected.hora || initialShifts[0]?.hora || '';
+
+  const [availableShifts, setAvailableShifts] = useState<IQuote[]>(initialShifts);
+  const [selectedDay, setSelectedDay] = useState<string>(initialDay);
+  const [selectedShift, setSelectedShift] = useState<string>(initialShift);
   const [selectedQuoteId, setSelectedQuoteId] = useState<string>(
-    quoteSelected.id || getShiftsByDay(quotes.dias[0])[0].id
+    quoteSelected.id || initialShifts[0]?.id || ''
+  );
+  const [selectedLineId, setSelectedLineId] = useState<string>(
+    quoteSelected.lineId || initialShifts[0]?.lineId || ''
   );
 
   const onSubmit = useCallback(() => {
-    onSelectDate(selectedQuoteId, selectedDay, selectedShift);
-  }, [onSelectDate, selectedQuoteId, selectedDay, selectedShift]);
+    if (!selectedShift) return;
+    onSelectDate(selectedQuoteId, selectedDay, selectedShift, selectedLineId);
+  }, [onSelectDate, selectedQuoteId, selectedDay, selectedShift, selectedLineId]);
 
   const handleSelectedDay = useCallback((selectedDay) => {
+    const dayShifts = getShiftsByDay(selectedDay);
     setSelectedDay(selectedDay);
-    setAvailableShifts(getShiftsByDay(selectedDay));
+    setAvailableShifts(dayShifts);
+
+    if (!dayShifts.length) {
+      setSelectedShift('');
+      setSelectedQuoteId('');
+      setSelectedLineId('');
+      return;
+    }
+
     if (quoteSelected.hora) {
       setSelectedShift(quoteSelected.hora);
       resetShift();
+      return;
     }
-    setSelectedShift(getShiftsByDay(selectedDay)[0].hora);
-    setSelectedQuoteId(getShiftsByDay(selectedDay)[0].id);
+    setSelectedShift(dayShifts[0].hora);
+    setSelectedQuoteId(dayShifts[0].id || '');
+    setSelectedLineId(dayShifts[0].lineId || '');
   }, []);
 
   const handleChangeShift = (e) => {
@@ -157,7 +173,8 @@ function Calendar(): JSX.Element {
     const quote = getShiftByHour(quoteHour);
     if (!quote) return;
     setSelectedShift(quote.hora);
-    setSelectedQuoteId(quote.id);
+    setSelectedQuoteId(quote.id || '');
+    setSelectedLineId(quote.lineId || '');
   };
 
   return (
@@ -184,11 +201,11 @@ function Calendar(): JSX.Element {
           </SubtitleItem>
         </Subtitle>
         <ShiftSelection
-          defaultValue={quoteSelected?.hora}
+          value={selectedShift}
           onChange={handleChangeShift}
         >
-          {availableShifts.map((shift) => (
-            <option key={shift.id} value={shift.hora}>
+          {availableShifts.map((shift, index) => (
+            <option key={`${shift.id || shift.lineId || 'slot'}-${shift.fecha}-${shift.hora}-${index}`} value={shift.hora}>
               {shift.hora.substr(0, 5)}
             </option>
           ))}

@@ -95,13 +95,13 @@ function SelectPaymentMethod() {
 
       <GreyStepBox>
         <>
-          <input onClick={()=>onChangePaymentPlatform("mercadoPago")}
+          <input onClick={()=>onChangePaymentPlatform("mercadopago")}
             disabled
             type="radio"
             id="MercadoPago"
             name="paymentPlatform"
-            value="MercadoPago"
-            defaultChecked={paymentPlatform==='mercadoPago'}
+            value="mercadopago"
+            defaultChecked={paymentPlatform==='mercadopago'}
           />
           <label style={{marginLeft: "5px"}} htmlFor="MercadoPago">Mercado Pago</label>
           <ImgContainer>

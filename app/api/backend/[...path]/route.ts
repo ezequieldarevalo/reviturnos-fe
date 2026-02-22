@@ -20,7 +20,12 @@ async function proxy(req: NextRequest, path: string[], plant?: string) {
     );
   }
 
-  const targetUrl = `${baseUrl.replace(/\/$/, '')}/${path.join('/')}`;
+  const targetBaseUrl = `${baseUrl.replace(/\/$/, '')}/${path.join('/')}`;
+  const forwardSearchParams = new URLSearchParams(req.nextUrl.searchParams);
+  forwardSearchParams.delete('plant');
+  const targetUrl = forwardSearchParams.toString()
+    ? `${targetBaseUrl}?${forwardSearchParams.toString()}`
+    : targetBaseUrl;
 
   let body: any = undefined;
   if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -60,14 +65,16 @@ export async function POST(
   req: NextRequest,
   { params }: any,
 ) {
+  const resolvedParams = await params;
   const plant = req.nextUrl.searchParams.get('plant') || undefined;
-  return proxy(req, params.path, plant);
+  return proxy(req, resolvedParams.path, plant);
 }
 
 export async function GET(
   req: NextRequest,
   { params }: any,
 ) {
+  const resolvedParams = await params;
   const plant = req.nextUrl.searchParams.get('plant') || undefined;
-  return proxy(req, params.path, plant);
+  return proxy(req, resolvedParams.path, plant);
 }
