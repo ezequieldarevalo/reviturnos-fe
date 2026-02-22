@@ -144,24 +144,26 @@ export default function CreateAppointmentPage() {
     }
   };
 
-  if (loading) return <main>Cargando formulario...</main>;
+  if (loading) return <main className="admin-loading">Cargando formulario...</main>;
 
   return (
-    <main>
-      <h1>Planta · Crear turno manual</h1>
+    <main className="admin-page">
+      <h1 className="admin-title">Planta · Crear turno manual</h1>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
-      {success ? <div style={{ color: '#0f7a26', marginBottom: 10 }}>{success}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
+      {success ? <div className="admin-alert admin-alert-success">{success}</div> : null}
 
-      <form onSubmit={handleSubmit} style={{ border: '1px solid #ddd', padding: 12 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+      <form onSubmit={handleSubmit} className="admin-card">
+        <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
           <input
+            className="admin-input"
             type="date"
             value={form.fecha}
             onChange={(e) => setForm((p) => ({ ...p, fecha: e.target.value }))}
             required
           />
           <input
+            className="admin-input"
             type="time"
             value={form.hora}
             onChange={(e) => setForm((p) => ({ ...p, hora: e.target.value }))}
@@ -169,12 +171,14 @@ export default function CreateAppointmentPage() {
           />
 
           <input
+            className="admin-input"
             placeholder="Dominio"
             value={form.dominio}
             onChange={(e) => setForm((p) => ({ ...p, dominio: e.target.value.toUpperCase() }))}
             required
           />
           <select
+            className="admin-select"
             value={form.tipo_vehiculo}
             onChange={(e) => setForm((p) => ({ ...p, tipo_vehiculo: e.target.value }))}
             required
@@ -190,12 +194,14 @@ export default function CreateAppointmentPage() {
           </select>
 
           <input
+            className="admin-input"
             placeholder="Nombre"
             value={form.nombre}
             onChange={(e) => setForm((p) => ({ ...p, nombre: e.target.value }))}
             required
           />
           <input
+            className="admin-input"
             placeholder="Apellido"
             value={form.apellido}
             onChange={(e) => setForm((p) => ({ ...p, apellido: e.target.value }))}
@@ -203,6 +209,7 @@ export default function CreateAppointmentPage() {
           />
 
           <input
+            className="admin-input"
             type="email"
             placeholder="Email"
             value={form.email}
@@ -210,6 +217,7 @@ export default function CreateAppointmentPage() {
             required
           />
           <input
+            className="admin-input"
             placeholder="Teléfono"
             value={form.telefono}
             onChange={(e) => setForm((p) => ({ ...p, telefono: e.target.value }))}
@@ -217,19 +225,21 @@ export default function CreateAppointmentPage() {
           />
 
           <input
+            className="admin-input"
             placeholder="Combustible (opcional)"
             value={form.combustible}
             onChange={(e) => setForm((p) => ({ ...p, combustible: e.target.value }))}
           />
           <input
+            className="admin-input"
             placeholder="Línea (opcional)"
             value={form.linea}
             onChange={(e) => setForm((p) => ({ ...p, linea: e.target.value }))}
           />
         </div>
 
-        <div style={{ marginTop: 10, borderTop: '1px dashed #ccc', paddingTop: 10 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ marginTop: 12, borderTop: '1px dashed #ccd7ef', paddingTop: 12 }}>
+          <label className="admin-inline">
             <input
               type="checkbox"
               checked={registerPaymentNow}
@@ -239,18 +249,20 @@ export default function CreateAppointmentPage() {
           </label>
 
           {registerPaymentNow ? (
-            <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-              <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+            <div className="admin-form-grid" style={{ marginTop: 8, gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <select className="admin-select" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
                 <option value="efectivo">efectivo</option>
                 <option value="mercadopago">mercadopago</option>
                 <option value="transferencia">transferencia</option>
               </select>
               <input
+                className="admin-input"
                 placeholder="Referencia (opcional)"
                 value={paymentRef}
                 onChange={(e) => setPaymentRef(e.target.value)}
               />
               <input
+                className="admin-input"
                 placeholder="Transaction ID (opcional)"
                 value={paymentTx}
                 onChange={(e) => setPaymentTx(e.target.value)}
@@ -259,7 +271,7 @@ export default function CreateAppointmentPage() {
           ) : null}
         </div>
 
-        <button type="submit" disabled={saving} style={{ marginTop: 10 }}>
+        <button type="submit" disabled={saving} className="admin-btn admin-btn-primary" style={{ marginTop: 12 }}>
           {saving
             ? registerPaymentNow
               ? 'Creando y cobrando...'

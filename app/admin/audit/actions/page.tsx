@@ -74,19 +74,19 @@ export default function ActionAuditPage() {
     load();
   }, [router]);
 
-  if (loading) return <main>Cargando auditoría de acciones...</main>;
+  if (loading) return <main className="admin-loading">Cargando auditoría de acciones...</main>;
 
   return (
-    <main>
-      <h1>Auditoría de acciones</h1>
-      <p>Rol activo: {session?.user?.role}</p>
+    <main className="admin-page">
+      <h1 className="admin-title">Auditoría de acciones</h1>
+      <p className="admin-subtitle">Rol activo: {session?.user?.role}</p>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+      <div className="admin-card admin-actions">
         <label>
-          Acción:{' '}
-          <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
+          Acción:
+          <select className="admin-select" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)}>
             <option value="">Todas</option>
             {actions.map((action) => (
               <option key={action} value={action}>
@@ -97,8 +97,8 @@ export default function ActionAuditPage() {
         </label>
 
         <label>
-          Recurso:{' '}
-          <select value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
+          Recurso:
+          <select className="admin-select" value={targetFilter} onChange={(e) => setTargetFilter(e.target.value)}>
             <option value="">Todos</option>
             {targets.map((target) => (
               <option key={target} value={target}>
@@ -109,6 +109,7 @@ export default function ActionAuditPage() {
         </label>
 
         <button
+          className="admin-btn admin-btn-primary"
           onClick={async () => {
             if (!session) return;
             setError('');
@@ -123,11 +124,11 @@ export default function ActionAuditPage() {
         </button>
       </div>
 
-      <section style={{ border: '1px solid #ddd', padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Eventos ({filtered.length})</h3>
-        <ul>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Eventos ({filtered.length})</h3>
+        <ul className="admin-list">
           {filtered.map((log) => (
-            <li key={log.id} style={{ marginBottom: 8 }}>
+            <li key={log.id} className="admin-list-item">
               {new Date(log.createdAt).toLocaleString('es-AR')} · <b>{log.action}</b> · {log.targetType}
               {log.targetId ? `:${log.targetId}` : ''} · {log.userEmail} ({log.userRole})
             </li>

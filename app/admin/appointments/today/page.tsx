@@ -78,18 +78,18 @@ export default function TodayAppointmentsPage() {
     }
   };
 
-  if (loading) return <main>Cargando turnos...</main>;
+  if (loading) return <main className="admin-loading">Cargando turnos...</main>;
 
   return (
-    <main>
-      <h1>Planta · Turnos</h1>
+    <main className="admin-page">
+      <h1 className="admin-title">Planta · Turnos</h1>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <div style={{ marginBottom: 12 }}>
+      <div className="admin-card">
         <label>
-          Día: 
-          <select value={selectedDate} onChange={(e) => loadByDate(e.target.value)}>
+          Día:
+          <select className="admin-select" value={selectedDate} onChange={(e) => loadByDate(e.target.value)}>
             <option value="">Hoy</option>
             {dates.map((d) => (
               <option key={d} value={d}>
@@ -100,11 +100,11 @@ export default function TodayAppointmentsPage() {
         </label>
       </div>
 
-      <section style={{ border: '1px solid #ddd', padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Listado ({turnos.length})</h3>
-        <ul>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Listado ({turnos.length})</h3>
+        <ul className="admin-list">
           {turnos.map((t) => (
-            <li key={t.id}>
+            <li key={t.id} className="admin-list-item">
               {t.fecha} {t.hora} · {t.estado} · {t.datos?.customerName || '-'} ·{' '}
               {(t.datos?.vehicleDomain || '-').toUpperCase()}
             </li>

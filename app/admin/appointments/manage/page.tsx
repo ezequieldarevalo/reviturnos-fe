@@ -214,21 +214,21 @@ export default function ManageAppointmentsPage() {
     }
   };
 
-  if (loading) return <main>Cargando...</main>;
+  if (loading) return <main className="admin-loading">Cargando...</main>;
 
   return (
-    <main>
-      <h1>Planta · Gestionar turnos</h1>
+    <main className="admin-page">
+      <h1 className="admin-title">Planta · Gestionar turnos</h1>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
-      {success ? <div style={{ color: '#0f7a26', marginBottom: 10 }}>{success}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
+      {success ? <div className="admin-alert admin-alert-success">{success}</div> : null}
 
-      <section style={{ border: '1px solid #ddd', padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Turnos del día</h3>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Turnos del día</h3>
         <div style={{ marginBottom: 8 }}>
           <label>
-            Estado:{' '}
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            Estado:
+            <select className="admin-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="ALL">Todos</option>
               {availableStatuses.map((status) => (
                 <option key={status} value={status}>
@@ -238,12 +238,13 @@ export default function ManageAppointmentsPage() {
             </select>
           </label>
         </div>
-        <ul>
+        <ul className="admin-list">
           {filteredDayAppointments.map((row) => (
-            <li key={row.id} style={{ marginBottom: 6 }}>
+            <li key={row.id} className="admin-list-item">
               {row.hora} · {row.estado} · {row.datos?.customerName || '-'} ·{' '}
               {(row.datos?.vehicleDomain || '-').toUpperCase()}{' '}
               <button
+                className="admin-btn admin-btn-secondary"
                 onClick={async () => {
                   setSearchId(row.id);
                   setSearchDomain('');
@@ -257,29 +258,31 @@ export default function ManageAppointmentsPage() {
         </ul>
       </section>
 
-      <section style={{ border: '1px solid #ddd', padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Buscar turno</h3>
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '2fr auto 2fr auto' }}>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Buscar turno</h3>
+        <div className="admin-form-grid" style={{ gridTemplateColumns: '2fr auto 2fr auto' }}>
           <input
+            className="admin-input"
             placeholder="ID turno"
             value={searchId}
             onChange={(e) => setSearchId(e.target.value)}
           />
-          <button onClick={findById}>Buscar por ID</button>
+          <button className="admin-btn admin-btn-primary" onClick={findById}>Buscar por ID</button>
 
           <input
+            className="admin-input"
             placeholder="Dominio (ej: ABC123)"
             value={searchDomain}
             onChange={(e) => setSearchDomain(e.target.value.toUpperCase())}
           />
-          <button onClick={findByDomain}>Buscar por dominio</button>
+          <button className="admin-btn admin-btn-primary" onClick={findByDomain}>Buscar por dominio</button>
         </div>
       </section>
 
       {hasAppointment ? (
         <>
-          <section style={{ border: '1px solid #ddd', padding: 12, marginBottom: 12 }}>
-            <h3 style={{ marginTop: 0 }}>Turno encontrado</h3>
+          <section className="admin-card">
+            <h3 className="admin-card-title">Turno encontrado</h3>
             <p>
               <b>ID:</b> {appointment?.id}
               <br />
@@ -296,46 +299,49 @@ export default function ManageAppointmentsPage() {
           </section>
 
           {canMutate ? (
-            <section style={{ border: '1px solid #ddd', padding: 12, marginBottom: 12 }}>
-              <h3 style={{ marginTop: 0 }}>Acciones</h3>
+            <section className="admin-card">
+              <h3 className="admin-card-title">Acciones</h3>
 
               <div style={{ marginBottom: 10 }}>
-                <button onClick={doMarkCompleted}>Marcar como realizado</button>
+                <button className="admin-btn admin-btn-primary" onClick={doMarkCompleted}>Marcar como realizado</button>
               </div>
 
               <div style={{ marginBottom: 12 }}>
                 <h4 style={{ marginBottom: 6 }}>Registrar pago</h4>
-                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr 1fr auto' }}>
-                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
+                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
+                  <select className="admin-select" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
                     <option value="efectivo">efectivo</option>
                     <option value="mercadopago">mercadopago</option>
                     <option value="transferencia">transferencia</option>
                   </select>
                   <input
+                    className="admin-input"
                     placeholder="Referencia"
                     value={paymentRef}
                     onChange={(e) => setPaymentRef(e.target.value)}
                   />
                   <input
+                    className="admin-input"
                     placeholder="Transaction ID"
                     value={paymentTx}
                     onChange={(e) => setPaymentTx(e.target.value)}
                   />
-                  <button onClick={doRegisterPayment}>Registrar pago</button>
+                  <button className="admin-btn admin-btn-primary" onClick={doRegisterPayment}>Registrar pago</button>
                 </div>
               </div>
 
               <div>
                 <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
-                <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '1fr 1fr 1fr auto' }}>
-                  <input type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
-                  <input type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
+                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr auto' }}>
+                  <input className="admin-input" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} />
+                  <input className="admin-input" type="time" value={newTime} onChange={(e) => setNewTime(e.target.value)} />
                   <input
+                    className="admin-input"
                     placeholder="Línea (opcional)"
                     value={newLine}
                     onChange={(e) => setNewLine(e.target.value)}
                   />
-                  <button onClick={doReschedule} disabled={!newDate || !newTime}>
+                  <button className="admin-btn admin-btn-primary" onClick={doReschedule} disabled={!newDate || !newTime}>
                     Reprogramar
                   </button>
                 </div>

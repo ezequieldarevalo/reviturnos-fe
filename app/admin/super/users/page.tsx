@@ -121,50 +121,53 @@ export default function SuperUsersPage() {
     }
   };
 
-  if (loading) return <main>Cargando usuarios...</main>;
+  if (loading) return <main className="admin-loading">Cargando usuarios...</main>;
 
   return (
-    <main>
-      <h1>Superadmin · Usuarios</h1>
+    <main className="admin-page">
+      <h1 className="admin-title">Superadmin · Usuarios</h1>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <section style={{ border: '1px solid #ddd', padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Crear usuario</h3>
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: '2fr 1fr 1fr 1fr auto' }}>
-          <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+      <section className="admin-card">
+        <h3 className="admin-card-title">Crear usuario</h3>
+        <div className="admin-form-grid" style={{ gridTemplateColumns: '2fr 1fr 1fr 1fr auto' }}>
+          <input className="admin-input" type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input
+            className="admin-input"
             type="password"
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-          <select value={role} onChange={(e) => setRole(e.target.value)}>
+          <select className="admin-select" value={role} onChange={(e) => setRole(e.target.value)}>
             <option value="admin">admin</option>
             <option value="operator">operator</option>
             <option value="viewer">viewer</option>
             <option value="superadmin">superadmin</option>
           </select>
-          <select value={plantId} onChange={(e) => setPlantId(e.target.value)}>
+          <select className="admin-select" value={plantId} onChange={(e) => setPlantId(e.target.value)}>
             {plants.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.code}
               </option>
             ))}
           </select>
-          <button disabled={!canCreate} onClick={createUser}>
+          <button className="admin-btn admin-btn-primary" disabled={!canCreate} onClick={createUser}>
             Crear
           </button>
         </div>
       </section>
 
-      <section style={{ border: '1px solid #ddd', padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Listado</h3>
-        <ul>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Listado</h3>
+        <ul className="admin-list">
           {users.map((user) => (
-            <li key={user.id} style={{ marginBottom: 8 }}>
+            <li key={user.id} className="admin-list-item">
               {user.email} ·{' '}
               <select
+                className="admin-select"
+                style={{ maxWidth: 160, display: 'inline-block' }}
                 value={drafts[user.id]?.role || user.role}
                 onChange={(e) =>
                   setDrafts((prev) => ({
@@ -186,6 +189,8 @@ export default function SuperUsersPage() {
                 <option value="superadmin">superadmin</option>
               </select>{' '}
               <select
+                className="admin-select"
+                style={{ maxWidth: 140, display: 'inline-block' }}
                 value={drafts[user.id]?.plantId || user.plantId}
                 onChange={(e) =>
                   setDrafts((prev) => ({
@@ -227,7 +232,7 @@ export default function SuperUsersPage() {
                 />{' '}
                 activo
               </label>{' '}
-              <button onClick={() => saveUser(user.id)}>Guardar</button>
+              <button className="admin-btn admin-btn-primary" onClick={() => saveUser(user.id)}>Guardar</button>
             </li>
           ))}
         </ul>

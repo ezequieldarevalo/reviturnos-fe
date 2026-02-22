@@ -24,5 +24,5 @@ export default function AdminHomePage() {
     router.replace('/admin/appointments/today');
   }, [router]);
 
-  return <main>Cargando panel...</main>;
+  return <main className="admin-loading">Cargando panel...</main>;
 }

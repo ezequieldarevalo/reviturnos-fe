@@ -132,18 +132,18 @@ export default function PaymentsAuditPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return <main>Cargando auditoría...</main>;
+  if (loading) return <main className="admin-loading">Cargando auditoría...</main>;
 
   return (
-    <main>
-      <h1>Planta · Auditoría de pagos</h1>
+    <main className="admin-page">
+      <h1 className="admin-title">Planta · Auditoría de pagos</h1>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <div style={{ marginBottom: 10 }}>
+      <div className="admin-card">
         <label>
-          Fecha: 
-          <select value={selectedDate} onChange={(e) => onChangeDate(e.target.value)}>
+          Fecha:
+          <select className="admin-select" value={selectedDate} onChange={(e) => onChangeDate(e.target.value)}>
             <option value="">Hoy</option>
             {availableDates.map((date) => (
               <option key={date} value={date}>
@@ -154,18 +154,18 @@ export default function PaymentsAuditPage() {
         </label>
       </div>
 
-      <div style={{ marginBottom: 10 }}>
+      <div className="admin-card">
         <b>Pagos registrados:</b> {paidRows.length} · <b>Total:</b> ${total.toLocaleString('es-AR')}
-        <button style={{ marginLeft: 10 }} onClick={exportCsv} disabled={!paidRows.length}>
+        <button className="admin-btn admin-btn-primary" style={{ marginLeft: 10 }} onClick={exportCsv} disabled={!paidRows.length}>
           Exportar CSV
         </button>
       </div>
 
-      <section style={{ border: '1px solid #ddd', padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Detalle</h3>
-        <ul>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Detalle</h3>
+        <ul className="admin-list">
           {paidRows.map((row) => (
-            <li key={row.id} style={{ marginBottom: 6 }}>
+            <li key={row.id} className="admin-list-item">
               {row.fecha} {row.hora} · {row.datos?.customerName || '-'} ·{' '}
               {(row.datos?.vehicleDomain || '-').toUpperCase()} · ${Number(row.cobro?.amount || 0).toLocaleString('es-AR')} ·{' '}
               {row.cobro?.method || '-'} · {row.cobro?.status || '-'}

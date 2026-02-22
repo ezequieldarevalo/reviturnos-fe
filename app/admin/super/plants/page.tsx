@@ -116,37 +116,39 @@ export default function SuperPlantsPage() {
     }
   };
 
-  if (loading) return <main>Cargando plantas...</main>;
+  if (loading) return <main className="admin-loading">Cargando plantas...</main>;
 
   return (
-    <main>
-      <h1>Superadmin · Plantas</h1>
+    <main className="admin-page">
+      <h1 className="admin-title">Superadmin · Plantas</h1>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <section style={{ border: '1px solid #ddd', padding: 12, marginBottom: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Crear planta</h3>
-        <div style={{ display: 'flex', gap: 8 }}>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Crear planta</h3>
+        <div className="admin-actions">
           <input
+            className="admin-input"
             placeholder="Código"
             value={newCode}
             onChange={(e) => setNewCode(e.target.value.trim().toLowerCase())}
           />
-          <input placeholder="Nombre" value={newName} onChange={(e) => setNewName(e.target.value)} />
-          <button disabled={!newCode || !newName} onClick={createPlant}>
+          <input className="admin-input" placeholder="Nombre" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          <button className="admin-btn admin-btn-primary" disabled={!newCode || !newName} onClick={createPlant}>
             Crear
           </button>
         </div>
       </section>
 
-      <section style={{ border: '1px solid #ddd', padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Listado</h3>
-        <ul>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Listado</h3>
+        <ul className="admin-list">
           {plants.map((plant) => (
-            <li key={plant.id} style={{ marginBottom: 8 }}>
+            <li key={plant.id} className="admin-list-item">
               <b>{plant.code}</b>{' '}
               <input
-                style={{ marginLeft: 8 }}
+                className="admin-input"
+                style={{ marginLeft: 8, maxWidth: 220, display: 'inline-block' }}
                 value={drafts[plant.id]?.name || ''}
                 onChange={(e) =>
                   setDrafts((prev) => ({
@@ -156,7 +158,8 @@ export default function SuperPlantsPage() {
                 }
               />
               <input
-                style={{ marginLeft: 8 }}
+                className="admin-input"
+                style={{ marginLeft: 8, maxWidth: 180, display: 'inline-block' }}
                 value={drafts[plant.id]?.slug || ''}
                 onChange={(e) =>
                   setDrafts((prev) => ({
@@ -184,8 +187,8 @@ export default function SuperPlantsPage() {
                 />{' '}
                 activa
               </label>{' '}
-              <button onClick={() => updatePlant(plant.id)}>Guardar</button>{' '}
-              <button onClick={() => toggleActive(plant.id, plant.active)}>
+              <button className="admin-btn admin-btn-primary" onClick={() => updatePlant(plant.id)}>Guardar</button>{' '}
+              <button className="admin-btn admin-btn-secondary" onClick={() => toggleActive(plant.id, plant.active)}>
                 {plant.active ? 'Desactivar' : 'Activar'}
               </button>
             </li>

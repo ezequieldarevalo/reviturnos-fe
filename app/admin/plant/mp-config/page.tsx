@@ -63,24 +63,30 @@ export default function PlantMpConfigPage() {
     }
   };
 
-  if (loading) return <main>Cargando configuración...</main>;
+  if (loading) return <main className="admin-loading">Cargando configuración...</main>;
 
   return (
-    <main>
-      <h1>Planta · MercadoPago</h1>
-      <p>Planta activa en sesión: {session?.plantCode}</p>
-      <p>Token configurado: {configured ? 'Sí' : 'No'}</p>
+    <main className="admin-page">
+      <h1 className="admin-title">Planta · MercadoPago</h1>
+      <p className="admin-subtitle">Planta activa en sesión: {session?.plantCode}</p>
 
-      {error ? <div style={{ color: '#b00020', marginBottom: 10 }}>{error}</div> : null}
+      {error ? <div className="admin-alert admin-alert-error">{error}</div> : null}
 
-      <label style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
-        Habilitado
-      </label>
+      <section className="admin-card">
+        <h3 className="admin-card-title">Configuración</h3>
+        <p>Token configurado: <b>{configured ? 'Sí' : 'No'}</b></p>
 
-      <button style={{ marginTop: 10 }} onClick={save}>
-        Guardar
-      </button>
+        <label className="admin-inline">
+          <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          Habilitado
+        </label>
+
+        <div style={{ marginTop: 12 }}>
+          <button className="admin-btn admin-btn-primary" onClick={save}>
+            Guardar
+          </button>
+        </div>
+      </section>
     </main>
   );
 }

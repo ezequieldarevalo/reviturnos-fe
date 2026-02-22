@@ -80,28 +80,23 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!ready) return null;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', minHeight: '100vh' }}>
-      <aside style={{ borderRight: '1px solid #ddd', padding: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Admin</h3>
-        <p style={{ fontSize: 13, opacity: 0.8 }}>
-          {session?.user?.email}
+    <div className="admin-shell">
+      <aside className="admin-sidebar">
+        <div className="admin-brand">Admin</div>
+        <p className="admin-user-meta">
+          {session?.user?.email || '-'}
           <br />
-          Rol: {session?.user?.role}
+          Rol: {session?.user?.role || '-'}
         </p>
 
-        <nav style={{ display: 'grid', gap: 8 }}>
+        <nav className="admin-nav">
           {links.map((item) => {
             const active = pathname?.startsWith(item.href);
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                style={{
-                  padding: '8px 10px',
-                  borderRadius: 6,
-                  background: active ? '#f0f4ff' : 'transparent',
-                  border: active ? '1px solid #c8d7ff' : '1px solid transparent',
-                }}
+                className={active ? 'admin-nav-link active' : 'admin-nav-link'}
               >
                 {item.label}
               </Link>
@@ -110,7 +105,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </nav>
 
         <button
-          style={{ marginTop: 18 }}
+          className="admin-btn admin-btn-secondary admin-logout"
           onClick={() => {
             clearAdminSession();
             router.replace('/login');
@@ -120,7 +115,235 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         </button>
       </aside>
 
-      <section style={{ padding: 16 }}>{children}</section>
+      <section className="admin-content">{children}</section>
+
+      <style jsx global>{`
+        .admin-shell {
+          min-height: 100vh;
+          display: grid;
+          grid-template-columns: 260px 1fr;
+          background: linear-gradient(180deg, #f8faff 0%, #f3f6fc 100%);
+        }
+
+        .admin-sidebar {
+          padding: 18px 14px;
+          border-right: 1px solid #e4e9f5;
+          background: #ffffff;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .admin-brand {
+          margin: 0 4px 10px;
+          font-size: 20px;
+          font-weight: 800;
+          color: #1b2540;
+        }
+
+        .admin-user-meta {
+          margin: 0 4px 16px;
+          font-size: 12px;
+          line-height: 1.45;
+          color: #5a6786;
+        }
+
+        .admin-nav {
+          display: grid;
+          gap: 8px;
+        }
+
+        .admin-nav-link {
+          display: block;
+          border: 1px solid transparent;
+          border-radius: 10px;
+          padding: 10px 11px;
+          color: #243257;
+          text-decoration: none;
+          transition: all 0.18s ease;
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .admin-nav-link:hover {
+          background: #f2f6ff;
+          border-color: #dbe5ff;
+        }
+
+        .admin-nav-link.active {
+          background: #edf3ff;
+          border-color: #c7d7ff;
+          color: #16357a;
+        }
+
+        .admin-content {
+          padding: 22px;
+        }
+
+        .admin-page {
+          max-width: 1100px;
+        }
+
+        .admin-title {
+          margin: 0 0 14px;
+          color: #1c2848;
+          font-size: 26px;
+          font-weight: 800;
+        }
+
+        .admin-subtitle {
+          margin: -8px 0 14px;
+          color: #5f6d8f;
+          font-size: 14px;
+        }
+
+        .admin-alert {
+          border-radius: 10px;
+          padding: 10px 12px;
+          margin-bottom: 12px;
+          font-size: 14px;
+        }
+
+        .admin-alert-error {
+          background: #fff2f4;
+          border: 1px solid #ffd3da;
+          color: #9e1d2f;
+        }
+
+        .admin-alert-success {
+          background: #ecfff2;
+          border: 1px solid #c9f0d7;
+          color: #0a6d32;
+        }
+
+        .admin-card {
+          background: #fff;
+          border: 1px solid #e2e8f6;
+          border-radius: 14px;
+          padding: 14px;
+          margin-bottom: 14px;
+          box-shadow: 0 2px 12px rgba(18, 41, 87, 0.04);
+        }
+
+        .admin-card-title {
+          margin: 0 0 10px;
+          color: #1c2848;
+          font-size: 16px;
+          font-weight: 700;
+        }
+
+        .admin-grid,
+        .admin-form-grid,
+        .admin-row {
+          display: grid;
+          gap: 8px;
+        }
+
+        .admin-list {
+          margin: 0;
+          padding-left: 18px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .admin-list-item {
+          line-height: 1.4;
+        }
+
+        .admin-input,
+        .admin-select {
+          width: 100%;
+          box-sizing: border-box;
+          border: 1px solid #cfdaef;
+          background: #fff;
+          color: #1f2d4f;
+          border-radius: 9px;
+          padding: 9px 10px;
+          min-height: 38px;
+          outline: none;
+        }
+
+        .admin-input:focus,
+        .admin-select:focus {
+          border-color: #88a9ff;
+          box-shadow: 0 0 0 3px rgba(64, 119, 255, 0.14);
+        }
+
+        .admin-btn {
+          border: 1px solid transparent;
+          border-radius: 9px;
+          padding: 9px 12px;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 0.16s ease;
+        }
+
+        .admin-btn:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .admin-btn-primary {
+          background: #265ee9;
+          color: #fff;
+        }
+
+        .admin-btn-primary:hover:not(:disabled) {
+          background: #194fd4;
+        }
+
+        .admin-btn-secondary {
+          background: #f1f5ff;
+          border-color: #d3dfff;
+          color: #27417f;
+        }
+
+        .admin-btn-secondary:hover:not(:disabled) {
+          background: #e8eeff;
+        }
+
+        .admin-btn-danger {
+          background: #fff0f3;
+          border-color: #ffd2db;
+          color: #a11735;
+        }
+
+        .admin-logout {
+          margin-top: 18px;
+        }
+
+        .admin-inline {
+          display: inline-flex;
+          align-items: center;
+          gap: 7px;
+        }
+
+        .admin-actions {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .admin-loading {
+          padding: 12px;
+          color: #516084;
+        }
+
+        @media (max-width: 980px) {
+          .admin-shell {
+            grid-template-columns: 1fr;
+          }
+
+          .admin-sidebar {
+            border-right: 0;
+            border-bottom: 1px solid #e4e9f5;
+          }
+
+          .admin-content {
+            padding: 16px;
+          }
+        }
+      `}</style>
     </div>
   );
 }
