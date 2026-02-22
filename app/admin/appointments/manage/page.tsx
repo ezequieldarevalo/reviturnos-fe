@@ -693,7 +693,7 @@ export default function ManageAppointmentsPage() {
         >
           <section
             className="admin-card"
-            style={{ width: 'min(980px, 100%)', maxHeight: '90vh', overflow: 'auto', marginBottom: 0 }}
+            style={{ width: 'min(760px, 100%)', maxHeight: '90vh', overflow: 'auto', marginBottom: 0 }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -714,6 +714,7 @@ export default function ManageAppointmentsPage() {
                     <button
                       type="button"
                       className="admin-btn admin-btn-secondary"
+                      style={{ minWidth: 34, padding: '6px 10px' }}
                       onClick={() => {
                         const prev = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
                         setCalendarMonth(formatDayKey(prev));
@@ -725,6 +726,7 @@ export default function ManageAppointmentsPage() {
                     <button
                       type="button"
                       className="admin-btn admin-btn-secondary"
+                      style={{ minWidth: 34, padding: '6px 10px' }}
                       onClick={() => {
                         const next = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
                         setCalendarMonth(formatDayKey(next));
@@ -734,7 +736,7 @@ export default function ManageAppointmentsPage() {
                     </button>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6, marginBottom: 6, fontSize: 12, color: '#6072a8' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4, fontSize: 11, color: '#6072a8' }}>
                     {['LU', 'MA', 'MI', 'JU', 'VI', 'SA', 'DO'].map((w) => (
                       <div key={w} style={{ textAlign: 'center', fontWeight: 700 }}>{w}</div>
                     ))}
@@ -744,7 +746,7 @@ export default function ManageAppointmentsPage() {
                     style={{
                       display: 'grid',
                       gridTemplateColumns: 'repeat(7, 1fr)',
-                      gap: 6,
+                      gap: 4,
                     }}
                   >
                     {calendarDays.map((cell) => {
@@ -758,6 +760,8 @@ export default function ManageAppointmentsPage() {
                           style={{
                             minWidth: 0,
                             width: '100%',
+                            padding: '8px 6px',
+                            fontSize: 13,
                             opacity: cell.enabled ? 1 : 0.45,
                             borderStyle: cell.inMonth ? 'solid' : 'dashed',
                           }}
@@ -775,15 +779,32 @@ export default function ManageAppointmentsPage() {
                   </div>
                 </div>
 
-                <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr auto' }}>
-                  <select className="admin-select" value={newTime} onChange={(e) => setNewTime(e.target.value)}>
-                    <option value="">{newDate ? 'Seleccionar horario' : 'Primero seleccioná un día'}</option>
-                    {manualSlotTimes.map((time) => (
-                      <option key={time} value={time}>
-                        {time?.slice(0, 5) || time}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ marginBottom: 6, fontSize: 13, color: '#5f6d8f' }}>
+                    {newDate ? 'Seleccioná un horario' : 'Primero seleccioná un día'}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 38 }}>
+                    {manualSlotTimes.map((time) => {
+                      const selected = newTime === time;
+                      return (
+                        <button
+                          key={time}
+                          type="button"
+                          className={`admin-btn ${selected ? 'admin-btn-primary' : 'admin-btn-secondary'}`}
+                          style={{ minWidth: 74, padding: '7px 10px' }}
+                          onClick={() => setNewTime(time)}
+                        >
+                          {time?.slice(0, 5) || time}
+                        </button>
+                      );
+                    })}
+                    {newDate && !manualSlotTimes.length ? (
+                      <span style={{ color: '#7a86ad', fontSize: 13 }}>No hay horarios para el día seleccionado.</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <button className="admin-btn admin-btn-primary" onClick={doReschedule} disabled={!newDate || !newTime || !selectedManualSlot}>
                     Reprogramar
                   </button>
