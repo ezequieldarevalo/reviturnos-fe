@@ -62,7 +62,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
     const validateSession = async () => {
       try {
-        await adminApi(currentSession, 'auth/verify');
+        await adminApi(currentSession, 'auth/verify', { method: 'POST' });
         setSession(currentSession);
       } catch (_error) {
         clearAdminSession();
