@@ -614,7 +614,7 @@ export default function ManageAppointmentsPage() {
             turno_id: appointment.id,
             nueva_fecha: newDate,
             nueva_hora: selectedManualSlot.horaRaw || newTime,
-            nueva_linea: selectedManualSlot.lineId ? Number(selectedManualSlot.lineId) : undefined,
+            nueva_linea: selectedManualSlot.lineId || undefined,
           };
 
       const resp = await adminApi<{ turno_id: string }>(session, 'auth/repTur', {
