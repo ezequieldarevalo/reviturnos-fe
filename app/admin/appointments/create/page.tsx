@@ -10,6 +10,87 @@ type VehicleType = {
   description?: string;
 };
 
+type AvailableSlot = {
+  fecha: string;
+  hora: string;
+  lineId?: string | null;
+};
+
+const normalizeDay = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  const latam = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?$/);
+  if (latam) return `${latam[3]}-${latam[2]}-${latam[1]}`;
+
+  const parsed = new Date(raw);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = `${parsed.getMonth() + 1}`.padStart(2, '0');
+    const d = `${parsed.getDate()}`.padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+
+  return raw.slice(0, 10);
+};
+
+const normalizeHour = (value: unknown): string => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  const hhmm = raw.match(/(?:^|\D)(\d{1,2}):(\d{2})(?::\d{2})?(?:\D|$)/);
+  if (hhmm) {
+    const hour = `${Number(hhmm[1])}`.padStart(2, '0');
+    return `${hour}:${hhmm[2]}`;
+  }
+
+  const compact = raw.match(/^(\d{1,2})[.:](\d{2})$/);
+  if (compact) {
+    const hour = `${Number(compact[1])}`.padStart(2, '0');
+    return `${hour}:${compact[2]}`;
+  }
+
+  return raw;
+};
+
+const normalizeSlots = (rawSlots: any[]): AvailableSlot[] => {
+  return (rawSlots || [])
+    .map((slot: any) => {
+      const fecha = normalizeDay(
+        slot?.fecha ||
+          slot?.dia ||
+          slot?.date ||
+          slot?.fecha_turno ||
+          slot?.fecha_hora ||
+          slot?.datetime ||
+          slot?.fechaHora,
+      );
+
+      const hora = normalizeHour(
+        slot?.hora ||
+          slot?.horario ||
+          slot?.time ||
+          slot?.hora_turno ||
+          slot?.fecha_hora ||
+          slot?.datetime ||
+          slot?.fechaHora,
+      );
+
+      const lineValue = slot?.lineId ?? slot?.line_id ?? slot?.id_linea ?? slot?.linea ?? null;
+
+      return {
+        fecha,
+        hora,
+        lineId: lineValue !== null && lineValue !== undefined ? String(lineValue) : null,
+      } as AvailableSlot;
+    })
+    .filter((slot) => !!slot.fecha && !!slot.hora)
+    .filter((slot) => /^\d{2}:\d{2}$/.test(slot.hora));
+};
+
 type CreateForm = {
   fecha: string;
   hora: string;
@@ -56,6 +137,8 @@ export default function CreateAppointmentPage() {
   const [paymentMethod, setPaymentMethod] = useState('efectivo');
   const [paymentRef, setPaymentRef] = useState('');
   const [paymentTx, setPaymentTx] = useState('');
+  const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
 
   useEffect(() => {
     const current = getAdminSession();
@@ -98,6 +181,79 @@ export default function CreateAppointmentPage() {
     load();
   }, [router]);
 
+  useEffect(() => {
+    if (!session || !form.tipo_vehiculo) return;
+
+    const loadAvailability = async () => {
+      setAvailabilityLoading(true);
+      try {
+        let slots: AvailableSlot[] = [];
+        try {
+          const quotes = await adminApi<{ turnos?: AvailableSlot[] }>(
+            session,
+            `auth/getQuotes?tipoVehiculo=${encodeURIComponent(form.tipo_vehiculo)}`,
+          );
+          slots = normalizeSlots(quotes?.turnos || []);
+        } catch (_e0) {
+          try {
+            const quotes = await adminApi<{ turnos?: AvailableSlot[] }>(session, 'auth/getQuotes', {
+              method: 'POST',
+              body: { tipoVehiculo: form.tipo_vehiculo },
+            });
+            slots = normalizeSlots(quotes?.turnos || []);
+          } catch (_e1) {
+            slots = [];
+          }
+        }
+
+        setAvailableSlots(slots);
+
+        if (!slots.length) {
+          setForm((prev) => ({ ...prev, fecha: '', hora: '', linea: '' }));
+          return;
+        }
+
+        setForm((prev) => {
+          const validCurrent = slots.find(
+            (slot) =>
+              normalizeDay(slot.fecha) === normalizeDay(prev.fecha) &&
+              slot.hora === prev.hora &&
+              String(slot.lineId || '') === String(prev.linea || ''),
+          );
+          if (validCurrent) return prev;
+
+          const first = slots[0];
+          return {
+            ...prev,
+            fecha: normalizeDay(first.fecha),
+            hora: first.hora,
+            linea: first.lineId ? String(first.lineId) : '',
+          };
+        });
+      } catch (_e) {
+        setAvailableSlots([]);
+        setForm((prev) => ({ ...prev, fecha: '', hora: '', linea: '' }));
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    };
+
+    loadAvailability();
+  }, [session, form.tipo_vehiculo]);
+
+  const availableDays = Array.from(
+    new Set(availableSlots.map((slot) => normalizeDay(slot.fecha)).filter(Boolean)),
+  ).sort();
+
+  const availableSlotsForDay = availableSlots
+    .filter((slot) => normalizeDay(slot.fecha) === normalizeDay(form.fecha))
+    .sort((a, b) => {
+      if (a.hora === b.hora) return String(a.lineId || '').localeCompare(String(b.lineId || ''));
+      return a.hora.localeCompare(b.hora);
+    });
+
+  const selectedSlotKey = `${form.hora}__${form.linea || ''}`;
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!session) return;
@@ -111,7 +267,7 @@ export default function CreateAppointmentPage() {
         ...form,
         dominio: form.dominio.trim().toUpperCase(),
         anio: form.anio ? Number(form.anio) : undefined,
-        linea: form.linea ? Number(form.linea) : undefined,
+        linea: form.linea || undefined,
       };
 
       const resp = await adminApi<any>(session, 'auth/creTur', {
@@ -162,20 +318,60 @@ export default function CreateAppointmentPage() {
 
       <form onSubmit={handleSubmit} className="admin-card">
         <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <input
-            className="admin-input"
-            type="date"
+          <select
+            className="admin-select"
             value={form.fecha}
-            onChange={(e) => setForm((p) => ({ ...p, fecha: e.target.value }))}
+            onChange={(e) => {
+              const nextDate = e.target.value;
+              const firstSlotForDate = availableSlots
+                .filter((slot) => normalizeDay(slot.fecha) === normalizeDay(nextDate))
+                .sort((a, b) => a.hora.localeCompare(b.hora))[0];
+              setForm((p) => ({
+                ...p,
+                fecha: nextDate,
+                hora: firstSlotForDate?.hora || '',
+                linea: firstSlotForDate?.lineId ? String(firstSlotForDate.lineId) : '',
+              }));
+            }}
             required
-          />
-          <input
-            className="admin-input"
-            type="time"
-            value={form.hora}
-            onChange={(e) => setForm((p) => ({ ...p, hora: e.target.value }))}
+            disabled={availabilityLoading || !availableDays.length}
+          >
+            <option value="">{availabilityLoading ? 'Cargando días...' : 'Seleccionar día disponible'}</option>
+            {availableDays.map((day) => (
+              <option key={day} value={day}>
+                {day}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="admin-select"
+            value={selectedSlotKey}
+            onChange={(e) => {
+              const [hora, lineId] = e.target.value.split('__');
+              setForm((p) => ({ ...p, hora: hora || '', linea: lineId || '' }));
+            }}
             required
-          />
+            disabled={availabilityLoading || !form.fecha || !availableSlotsForDay.length}
+          >
+            <option value="">
+              {availabilityLoading
+                ? 'Cargando horarios...'
+                : form.fecha
+                  ? 'Seleccionar horario disponible'
+                  : 'Primero seleccioná un día'}
+            </option>
+            {availableSlotsForDay.map((slot) => {
+              const value = `${slot.hora}__${slot.lineId || ''}`;
+              const lineLabel = slot.lineId ? ` · línea ${slot.lineId}` : '';
+              return (
+                <option key={`${slot.hora}-${slot.lineId || 'none'}`} value={value}>
+                  {slot.hora}
+                  {lineLabel}
+                </option>
+              );
+            })}
+          </select>
 
           <input
             className="admin-input"
@@ -259,11 +455,17 @@ export default function CreateAppointmentPage() {
           />
           <input
             className="admin-input"
-            placeholder="Línea (opcional)"
+            placeholder="Línea"
             value={form.linea}
-            onChange={(e) => setForm((p) => ({ ...p, linea: e.target.value }))}
+            readOnly
           />
         </div>
+
+        {!availabilityLoading && !availableSlots.length ? (
+          <p style={{ marginTop: 8, color: '#7a86ad' }}>
+            No hay disponibilidad para el tipo de vehículo seleccionado.
+          </p>
+        ) : null}
 
         <div style={{ marginTop: 12, borderTop: '1px dashed #ccd7ef', paddingTop: 12 }}>
           <label className="admin-inline">
