@@ -364,6 +364,11 @@ export default function ManageAppointmentsPage() {
     if (!metodo) return '-';
     const raw = metodo.trim();
     const [methodPart, ...rest] = raw.split(/\s-\s/);
+    const normalizeMethodKey = (value: string) =>
+      value
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/-/g, '_');
     const suffix = rest.length ? ` - ${rest.join(' - ')}` : '';
     const key = methodPart
       .toLowerCase()
@@ -384,6 +389,9 @@ export default function ManageAppointmentsPage() {
       efectivo: 'Efectivo',
     };
     const normalized = map[key] || methodPart.replace(/_/g, ' ');
+    if (rest.length === 1 && normalizeMethodKey(rest[0]) === key) {
+      return normalized;
+    }
     return `${normalized}${suffix}`;
   };
 
