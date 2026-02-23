@@ -416,6 +416,11 @@ export default function ManageAppointmentsPage() {
     return amount > 0 && hasMethod;
   }, [appointment]);
 
+  const isCompletedAppointment = useMemo(() => {
+    const status = (appointment?.estado || appointment?.status || '').toUpperCase();
+    return status === 'T';
+  }, [appointment]);
+
   const updateManageQuery = (id?: string, domain?: string) => {
     const qs = new URLSearchParams(searchParams?.toString() || '');
     if (id) qs.set('id', id);
@@ -808,21 +813,27 @@ export default function ManageAppointmentsPage() {
 
               <div>
                 <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
-                <button
-                  className="admin-btn admin-btn-secondary"
-                  onClick={async () => {
-                    if (!appointment?.id) return;
-                    clearMessages();
-                    setReprogModalOpen(true);
-                    setCalendarMonth('');
-                    await loadRescheduleAvailability(
-                      appointment.id,
-                      appointment?.datos?.vehicleType || (appointment as any)?.datos?.tipo_vehiculo,
-                    );
-                  }}
-                >
-                  Abrir disponibilidad y reprogramar
-                </button>
+                {isCompletedAppointment ? (
+                  <div style={{ color: '#7a86ad', fontWeight: 600 }}>
+                    Este turno está realizado y no se puede reprogramar.
+                  </div>
+                ) : (
+                  <button
+                    className="admin-btn admin-btn-secondary"
+                    onClick={async () => {
+                      if (!appointment?.id) return;
+                      clearMessages();
+                      setReprogModalOpen(true);
+                      setCalendarMonth('');
+                      await loadRescheduleAvailability(
+                        appointment.id,
+                        appointment?.datos?.vehicleType || (appointment as any)?.datos?.tipo_vehiculo,
+                      );
+                    }}
+                  >
+                    Abrir disponibilidad y reprogramar
+                  </button>
+                )}
               </div>
             </section>
           ) : null}
