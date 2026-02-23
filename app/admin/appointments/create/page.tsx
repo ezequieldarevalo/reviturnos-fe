@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { adminApi } from 'lib/adminApi';
 import { AdminSession, getAdminSession } from 'lib/adminAuth';
@@ -91,6 +91,27 @@ const normalizeSlots = (rawSlots: any[]): AvailableSlot[] => {
     .filter((slot) => /^\d{2}:\d{2}$/.test(slot.hora));
 };
 
+const formatDayKey = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = `${date.getMonth() + 1}`.padStart(2, '0');
+  const d = `${date.getDate()}`.padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const parseDayKey = (day: string): Date | null => {
+  const normalized = normalizeDay(day);
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+};
+
+const monthKeyFromDay = (day: string): string => {
+  const normalized = normalizeDay(day);
+  return normalized ? `${normalized.slice(0, 7)}-01` : '';
+};
+
 type CreateForm = {
   fecha: string;
   hora: string;
@@ -139,6 +160,7 @@ export default function CreateAppointmentPage() {
   const [paymentTx, setPaymentTx] = useState('');
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState('');
 
   useEffect(() => {
     const current = getAdminSession();
@@ -241,18 +263,77 @@ export default function CreateAppointmentPage() {
     loadAvailability();
   }, [session, form.tipo_vehiculo]);
 
-  const availableDays = Array.from(
-    new Set(availableSlots.map((slot) => normalizeDay(slot.fecha)).filter(Boolean)),
-  ).sort();
+  const availableDays = useMemo(
+    () => Array.from(new Set(availableSlots.map((slot) => normalizeDay(slot.fecha)).filter(Boolean))).sort(),
+    [availableSlots],
+  );
 
-  const availableSlotsForDay = availableSlots
-    .filter((slot) => normalizeDay(slot.fecha) === normalizeDay(form.fecha))
-    .sort((a, b) => {
-      if (a.hora === b.hora) return String(a.lineId || '').localeCompare(String(b.lineId || ''));
-      return a.hora.localeCompare(b.hora);
-    });
+  const availableDaySet = useMemo(() => new Set(availableDays.map((d) => normalizeDay(d))), [availableDays]);
 
-  const selectedSlotKey = `${form.hora}__${form.linea || ''}`;
+  const availableDayBounds = useMemo(() => {
+    const days = availableDays.map((d) => normalizeDay(d)).filter(Boolean).sort();
+    return {
+      min: days[0] || '',
+      max: days[days.length - 1] || '',
+    };
+  }, [availableDays]);
+
+  const calendarBaseDate = useMemo(() => {
+    const fallback = availableDayBounds.min || normalizeDay(form.fecha) || '';
+    const key = calendarMonth || monthKeyFromDay(fallback);
+    return parseDayKey(key) || parseDayKey(monthKeyFromDay(availableDayBounds.min || '')) || new Date();
+  }, [calendarMonth, availableDayBounds.min, form.fecha]);
+
+  const calendarTitle = useMemo(
+    () =>
+      new Intl.DateTimeFormat('es-AR', {
+        month: 'long',
+        year: 'numeric',
+      }).format(calendarBaseDate),
+    [calendarBaseDate],
+  );
+
+  const calendarDays = useMemo(() => {
+    const monthStart = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth(), 1);
+    const mondayIndex = (monthStart.getDay() + 6) % 7;
+    const firstVisible = new Date(monthStart);
+    firstVisible.setDate(monthStart.getDate() - mondayIndex);
+
+    const cells: Array<{ key: string; day: number; inMonth: boolean; enabled: boolean }> = [];
+    for (let i = 0; i < 42; i += 1) {
+      const date = new Date(firstVisible);
+      date.setDate(firstVisible.getDate() + i);
+      const key = formatDayKey(date);
+      cells.push({
+        key,
+        day: date.getDate(),
+        inMonth: date.getMonth() === calendarBaseDate.getMonth(),
+        enabled: availableDaySet.has(key),
+      });
+    }
+    return cells;
+  }, [calendarBaseDate, availableDaySet]);
+
+  const availableSlotsForDay = useMemo(
+    () =>
+      availableSlots
+        .filter((slot) => normalizeDay(slot.fecha) === normalizeDay(form.fecha))
+        .sort((a, b) => {
+          if (a.hora === b.hora) return String(a.lineId || '').localeCompare(String(b.lineId || ''));
+          return a.hora.localeCompare(b.hora);
+        }),
+    [availableSlots, form.fecha],
+  );
+
+  const availableHoursForDay = useMemo(
+    () => Array.from(new Set(availableSlotsForDay.map((slot) => slot.hora))).sort((a, b) => a.localeCompare(b)),
+    [availableSlotsForDay],
+  );
+
+  useEffect(() => {
+    if (!availableDays.length) return;
+    setCalendarMonth((prev) => prev || monthKeyFromDay(availableDays[0]));
+  }, [availableDays]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -318,41 +399,89 @@ export default function CreateAppointmentPage() {
 
       <form onSubmit={handleSubmit} className="admin-card">
         <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <select
-            className="admin-select"
-            value={form.fecha}
-            onChange={(e) => {
-              const nextDate = e.target.value;
-              const firstSlotForDate = availableSlots
-                .filter((slot) => normalizeDay(slot.fecha) === normalizeDay(nextDate))
-                .sort((a, b) => a.hora.localeCompare(b.hora))[0];
-              setForm((p) => ({
-                ...p,
-                fecha: nextDate,
-                hora: firstSlotForDate?.hora || '',
-                linea: firstSlotForDate?.lineId ? String(firstSlotForDate.lineId) : '',
-              }));
-            }}
-            required
-            disabled={availabilityLoading || !availableDays.length}
-          >
-            <option value="">{availabilityLoading ? 'Cargando días...' : 'Seleccionar día disponible'}</option>
-            {availableDays.map((day) => (
-              <option key={day} value={day}>
-                {day}
-              </option>
-            ))}
-          </select>
+          <div style={{ border: '1px solid #dbe4ff', borderRadius: 10, padding: 10 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const prev = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
+                  setCalendarMonth(formatDayKey(prev));
+                }}
+              >
+                ←
+              </button>
+              <b style={{ textTransform: 'capitalize' }}>{calendarTitle}</b>
+              <button
+                type="button"
+                className="admin-btn"
+                onClick={() => {
+                  const next = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
+                  setCalendarMonth(formatDayKey(next));
+                }}
+              >
+                →
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, fontSize: 12, color: '#7383a9' }}>
+              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map((label) => (
+                <span key={label} style={{ textAlign: 'center' }}>{label}</span>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginTop: 6 }}>
+              {calendarDays.map((dayCell) => {
+                const selected = normalizeDay(form.fecha) === dayCell.key;
+                return (
+                  <button
+                    key={dayCell.key}
+                    type="button"
+                    disabled={!dayCell.enabled || availabilityLoading}
+                    onClick={() => {
+                      const firstSlotForDate = availableSlots
+                        .filter((slot) => normalizeDay(slot.fecha) === dayCell.key)
+                        .sort((a, b) => a.hora.localeCompare(b.hora))[0];
+                      setForm((p) => ({
+                        ...p,
+                        fecha: dayCell.key,
+                        hora: firstSlotForDate?.hora || '',
+                        linea: firstSlotForDate?.lineId ? String(firstSlotForDate.lineId) : '',
+                      }));
+                    }}
+                    style={{
+                      height: 34,
+                      borderRadius: 8,
+                      border: selected ? '1px solid #2f6fed' : '1px solid #dbe4ff',
+                      background: selected ? '#2f6fed' : dayCell.enabled ? '#fff' : '#f4f7ff',
+                      color: selected ? '#fff' : dayCell.enabled ? '#22315d' : '#b1bddb',
+                      cursor: dayCell.enabled ? 'pointer' : 'not-allowed',
+                      opacity: dayCell.inMonth ? 1 : 0.5,
+                    }}
+                  >
+                    {dayCell.day}
+                  </button>
+                );
+              })}
+            </div>
+
+            <input type="hidden" value={form.fecha} required readOnly />
+          </div>
 
           <select
             className="admin-select"
-            value={selectedSlotKey}
+            value={form.hora}
             onChange={(e) => {
-              const [hora, lineId] = e.target.value.split('__');
-              setForm((p) => ({ ...p, hora: hora || '', linea: lineId || '' }));
+              const hora = e.target.value;
+              const firstSlot = availableSlotsForDay.find((slot) => slot.hora === hora);
+              setForm((p) => ({
+                ...p,
+                hora: hora || '',
+                linea: firstSlot?.lineId ? String(firstSlot.lineId) : '',
+              }));
             }}
             required
-            disabled={availabilityLoading || !form.fecha || !availableSlotsForDay.length}
+            disabled={availabilityLoading || !form.fecha || !availableHoursForDay.length}
           >
             <option value="">
               {availabilityLoading
@@ -361,13 +490,10 @@ export default function CreateAppointmentPage() {
                   ? 'Seleccionar horario disponible'
                   : 'Primero seleccioná un día'}
             </option>
-            {availableSlotsForDay.map((slot) => {
-              const value = `${slot.hora}__${slot.lineId || ''}`;
-              const lineLabel = slot.lineId ? ` · línea ${slot.lineId}` : '';
+            {availableHoursForDay.map((hour) => {
               return (
-                <option key={`${slot.hora}-${slot.lineId || 'none'}`} value={value}>
-                  {slot.hora}
-                  {lineLabel}
+                <option key={hour} value={hour}>
+                  {hour}
                 </option>
               );
             })}
@@ -452,12 +578,6 @@ export default function CreateAppointmentPage() {
             placeholder="Combustible (opcional)"
             value={form.combustible}
             onChange={(e) => setForm((p) => ({ ...p, combustible: e.target.value }))}
-          />
-          <input
-            className="admin-input"
-            placeholder="Línea"
-            value={form.linea}
-            readOnly
           />
         </div>
 
