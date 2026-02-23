@@ -21,6 +21,7 @@ type Turno = {
     telefono?: string;
     customerPhone?: string;
     email?: string;
+    customerEmail?: string;
     vehicleType?: string;
     tipo_vehiculo?: string;
     tipoVehiculo?: string;
@@ -426,7 +427,7 @@ export default function TodayAppointmentsPage() {
                       <section>
                         <h4>Cliente / Vehículo</h4>
                         <p><b>Nombre:</b> {detail.datos?.customerName || detail.datos?.nombre || '-'}</p>
-                        <p><b>Email:</b> {detail.datos?.email || '-'}</p>
+                        <p><b>Email:</b> {detail.datos?.customerEmail || detail.datos?.email || '-'}</p>
                         <p><b>Tel:</b> {detail.datos?.customerPhone || detail.datos?.telefono || '-'}</p>
                         <p><b>Dominio:</b> {(detail.datos?.vehicleDomain || detail.datos?.dominio || '-').toUpperCase()}</p>
                         <p><b>Tipo vehículo:</b> {detail.datos?.vehicleType || detail.datos?.tipo_vehiculo || detail.datos?.tipoVehiculo || '-'}</p>
