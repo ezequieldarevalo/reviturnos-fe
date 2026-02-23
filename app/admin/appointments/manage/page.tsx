@@ -507,11 +507,12 @@ export default function ManageAppointmentsPage() {
       session,
       `auth/turId?id_turno=${encodeURIComponent(id)}`,
     );
+    const resolvedId = data?.id || id;
 
     try {
       const detail = await adminApi<AppointmentData>(session, 'auth/tur', {
         method: 'POST',
-        body: { id_turno: id },
+        body: { id_turno: resolvedId },
       });
 
       setAppointment({
