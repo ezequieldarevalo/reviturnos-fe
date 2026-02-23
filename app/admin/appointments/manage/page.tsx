@@ -421,6 +421,13 @@ export default function ManageAppointmentsPage() {
     return status === 'T';
   }, [appointment]);
 
+  const hasActionableControls = useMemo(() => {
+    if (!canMutate) return false;
+    const canMarkOrReschedule = !isCompletedAppointment;
+    const canRegisterPayment = !isPaidAppointment;
+    return canMarkOrReschedule || canRegisterPayment;
+  }, [canMutate, isCompletedAppointment, isPaidAppointment]);
+
   const updateManageQuery = (id?: string, domain?: string) => {
     const qs = new URLSearchParams(searchParams?.toString() || '');
     if (id) qs.set('id', id);
@@ -773,7 +780,7 @@ export default function ManageAppointmentsPage() {
             </div>
           </section>
 
-          {canMutate ? (
+          {hasActionableControls ? (
             <section className="admin-card">
               <h3 className="admin-card-title">Acciones</h3>
 
