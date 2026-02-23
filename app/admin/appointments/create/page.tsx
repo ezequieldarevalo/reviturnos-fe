@@ -161,6 +161,7 @@ export default function CreateAppointmentPage() {
   const [availableSlots, setAvailableSlots] = useState<AvailableSlot[]>([]);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState('');
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   useEffect(() => {
     const current = getAdminSession();
@@ -232,6 +233,7 @@ export default function CreateAppointmentPage() {
 
         if (!slots.length) {
           setForm((prev) => ({ ...prev, fecha: '', hora: '', linea: '' }));
+          setDatePickerOpen(false);
           return;
         }
 
@@ -335,6 +337,13 @@ export default function CreateAppointmentPage() {
     setCalendarMonth((prev) => prev || monthKeyFromDay(availableDays[0]));
   }, [availableDays]);
 
+  const selectedDateLabel = useMemo(() => {
+    if (!form.fecha) return 'Seleccionar día disponible';
+    const parsed = parseDayKey(form.fecha);
+    if (!parsed) return form.fecha;
+    return parsed.toLocaleDateString('es-AR');
+  }, [form.fecha]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!session) return;
@@ -398,72 +407,87 @@ export default function CreateAppointmentPage() {
       {success ? <div className="admin-alert admin-alert-success">{success}</div> : null}
 
       <form onSubmit={handleSubmit} className="admin-card">
-        <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <div style={{ border: '1px solid #dbe4ff', borderRadius: 10, padding: 10 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={() => {
-                  const prev = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
-                  setCalendarMonth(formatDayKey(prev));
-                }}
-              >
-                ←
-              </button>
-              <b style={{ textTransform: 'capitalize' }}>{calendarTitle}</b>
-              <button
-                type="button"
-                className="admin-btn"
-                onClick={() => {
-                  const next = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
-                  setCalendarMonth(formatDayKey(next));
-                }}
-              >
-                →
-              </button>
-            </div>
+        <div className="admin-form-grid" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+          <div>
+            <button
+              type="button"
+              className="admin-input"
+              style={{ textAlign: 'left', cursor: 'pointer' }}
+              disabled={availabilityLoading || !availableDays.length}
+              onClick={() => setDatePickerOpen((prev) => !prev)}
+            >
+              {availabilityLoading ? 'Cargando días...' : selectedDateLabel}
+            </button>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, fontSize: 12, color: '#7383a9' }}>
-              {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map((label) => (
-                <span key={label} style={{ textAlign: 'center' }}>{label}</span>
-              ))}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginTop: 6 }}>
-              {calendarDays.map((dayCell) => {
-                const selected = normalizeDay(form.fecha) === dayCell.key;
-                return (
+            {datePickerOpen ? (
+              <div style={{ border: '1px solid #dbe4ff', borderRadius: 10, padding: 10, marginTop: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                   <button
-                    key={dayCell.key}
                     type="button"
-                    disabled={!dayCell.enabled || availabilityLoading}
+                    className="admin-btn"
                     onClick={() => {
-                      const firstSlotForDate = availableSlots
-                        .filter((slot) => normalizeDay(slot.fecha) === dayCell.key)
-                        .sort((a, b) => a.hora.localeCompare(b.hora))[0];
-                      setForm((p) => ({
-                        ...p,
-                        fecha: dayCell.key,
-                        hora: firstSlotForDate?.hora || '',
-                        linea: firstSlotForDate?.lineId ? String(firstSlotForDate.lineId) : '',
-                      }));
-                    }}
-                    style={{
-                      height: 34,
-                      borderRadius: 8,
-                      border: selected ? '1px solid #2f6fed' : '1px solid #dbe4ff',
-                      background: selected ? '#2f6fed' : dayCell.enabled ? '#fff' : '#f4f7ff',
-                      color: selected ? '#fff' : dayCell.enabled ? '#22315d' : '#b1bddb',
-                      cursor: dayCell.enabled ? 'pointer' : 'not-allowed',
-                      opacity: dayCell.inMonth ? 1 : 0.5,
+                      const prev = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() - 1, 1);
+                      setCalendarMonth(formatDayKey(prev));
                     }}
                   >
-                    {dayCell.day}
+                    ←
                   </button>
-                );
-              })}
-            </div>
+                  <b style={{ textTransform: 'capitalize' }}>{calendarTitle}</b>
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    onClick={() => {
+                      const next = new Date(calendarBaseDate.getFullYear(), calendarBaseDate.getMonth() + 1, 1);
+                      setCalendarMonth(formatDayKey(next));
+                    }}
+                  >
+                    →
+                  </button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, fontSize: 12, color: '#7383a9' }}>
+                  {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map((label) => (
+                    <span key={label} style={{ textAlign: 'center' }}>{label}</span>
+                  ))}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginTop: 6 }}>
+                  {calendarDays.map((dayCell) => {
+                    const selected = normalizeDay(form.fecha) === dayCell.key;
+                    return (
+                      <button
+                        key={dayCell.key}
+                        type="button"
+                        disabled={!dayCell.enabled || availabilityLoading}
+                        onClick={() => {
+                          const firstSlotForDate = availableSlots
+                            .filter((slot) => normalizeDay(slot.fecha) === dayCell.key)
+                            .sort((a, b) => a.hora.localeCompare(b.hora))[0];
+                          setForm((p) => ({
+                            ...p,
+                            fecha: dayCell.key,
+                            hora: firstSlotForDate?.hora || '',
+                            linea: firstSlotForDate?.lineId ? String(firstSlotForDate.lineId) : '',
+                          }));
+                          setDatePickerOpen(false);
+                        }}
+                        style={{
+                          height: 34,
+                          borderRadius: 8,
+                          border: selected ? '1px solid #2f6fed' : '1px solid #dbe4ff',
+                          background: selected ? '#2f6fed' : dayCell.enabled ? '#fff' : '#f4f7ff',
+                          color: selected ? '#fff' : dayCell.enabled ? '#22315d' : '#b1bddb',
+                          cursor: dayCell.enabled ? 'pointer' : 'not-allowed',
+                          opacity: dayCell.inMonth ? 1 : 0.5,
+                        }}
+                      >
+                        {dayCell.day}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
 
             <input type="hidden" value={form.fecha} required readOnly />
           </div>
