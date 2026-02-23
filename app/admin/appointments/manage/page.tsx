@@ -323,10 +323,10 @@ export default function ManageAppointmentsPage() {
 
   const toDateLabel = (value?: string) => {
     if (!value) return '-';
-    const parsed = new Date(value);
-    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('es-AR');
     const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleDateString('es-AR');
     return value;
   };
 
