@@ -777,9 +777,11 @@ export default function ManageAppointmentsPage() {
             <section className="admin-card">
               <h3 className="admin-card-title">Acciones</h3>
 
-              <div style={{ marginBottom: 10 }}>
-                <button className="admin-btn admin-btn-primary" onClick={doMarkCompleted}>Marcar como realizado</button>
-              </div>
+              {!isCompletedAppointment ? (
+                <div style={{ marginBottom: 10 }}>
+                  <button className="admin-btn admin-btn-primary" onClick={doMarkCompleted}>Marcar como realizado</button>
+                </div>
+              ) : null}
 
               {!isPaidAppointment ? (
                 <div style={{ marginBottom: 12 }}>
@@ -811,13 +813,9 @@ export default function ManageAppointmentsPage() {
                 </div>
               )}
 
-              <div>
-                <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
-                {isCompletedAppointment ? (
-                  <div style={{ color: '#7a86ad', fontWeight: 600 }}>
-                    Este turno está realizado y no se puede reprogramar.
-                  </div>
-                ) : (
+              {!isCompletedAppointment ? (
+                <div>
+                  <h4 style={{ marginBottom: 6 }}>Reprogramar</h4>
                   <button
                     className="admin-btn admin-btn-secondary"
                     onClick={async () => {
@@ -833,8 +831,8 @@ export default function ManageAppointmentsPage() {
                   >
                     Abrir disponibilidad y reprogramar
                   </button>
-                )}
-              </div>
+                </div>
+              ) : null}
             </section>
           ) : null}
         </>
